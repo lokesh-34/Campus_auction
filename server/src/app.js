@@ -5,14 +5,23 @@ import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
 import { standardLimiter } from './middleware/rateLimiter.js';
+
+// Route imports
 import { healthRouter } from './routes/health.js';
+import { userRouter } from './routes/userRoutes.js';
+import { listingRouter } from './routes/listingRoutes.js';
+import { bidRouter } from './routes/bidRoutes.js';
+import { saleRouter } from './routes/saleRoutes.js';
+import { communityRouter } from './routes/communityRoutes.js';
+import { aiRouter } from './routes/aiRoutes.js';
+import { uploadRouter } from './routes/uploadRoutes.js';
 
 export const app = express();
 
 // Security headers
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Configured for flexible API responses & client proxy
+    contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
   })
 );
@@ -21,7 +30,6 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or Postman)
       if (!origin) return callback(null, true);
       if (
         origin === env.CLIENT_URL ||
@@ -43,15 +51,23 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 // Rate limiting
 app.use(standardLimiter);
 
-// API Routes
+// Register API Routes
 app.use('/api/v1', healthRouter);
+app.use('/api/v1/users', userRouter);
+app.use('/api/v1/listings', listingRouter);
+app.use('/api/v1', bidRouter);
+app.use('/api/v1/sales', saleRouter);
+app.use('/api/v1', communityRouter);
+app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/uploads', uploadRouter);
 
 // Root route
 app.get('/', (req, res) => {
   res.json({
-    message: 'Welcome to CampusBid API',
-    docs: '/api/v1/health',
+    name: 'CampusBid API',
+    description: 'Campus Auction Marketplace Authoritative Backend',
     version: '1.0.0',
+    health: '/api/v1/health',
   });
 });
 
