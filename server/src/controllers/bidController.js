@@ -109,19 +109,28 @@ export async function disableAutoBid(req, res, next) {
 export async function getBidHistory(req, res, next) {
   try {
     const { id: listingId } = req.params;
+    const currentUserId = req.user?._id?.toString();
+
     const bids = await Bid.find({ listingId })
-      .populate('bidderId', 'displayName')
+      .populate('bidderId', '_id')
       .sort({ createdAt: -1 })
       .limit(50);
 
-    const safeBids = bids.map((b) => ({
-      id: b._id,
-      amountPaise: b.amountPaise,
-      source: b.source,
-      isWinning: b.isWinning,
-      createdAt: b.createdAt,
-      bidderName: b.bidderId ? b.bidderId.displayName : 'Campus Bidder',
-    }));
+    const safeBids = bids.map((b) => {
+      const idStr = b.bidderId?._id?.toString() || b.bidderId?.toString() || '';
+      const isMyBid = Boolean(currentUserId && idStr && idStr === currentUserId);
+      const shortSuffix = idStr ? idStr.slice(-4) : '';
+
+      return {
+        id: b._id,
+        amountPaise: b.amountPaise,
+        source: b.source,
+        isWinning: b.isWinning,
+        createdAt: b.createdAt,
+        isMyBid,
+        bidderName: isMyBid ? 'You' : `Bidder ***${shortSuffix}`,
+      };
+    });
 
     res.json({
       success: true,
@@ -243,9 +252,9 @@ export async function getMyActiveBids(req, res, next) {
         pickupPoint: listing.pickupPoint,
         seller: listing.sellerId
           ? {
-              _id: listing.sellerId._id,
-              displayName: listing.sellerId.displayName,
-            }
+            _id: listing.sellerId._id,
+            displayName: listing.sellerId.displayName,
+          }
           : null,
         isLeading,
         bidStatus: isLeading ? 'LEADING' : 'OUTBID',

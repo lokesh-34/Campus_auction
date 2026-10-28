@@ -7,7 +7,7 @@ import {
   placeBid,
   setAutoBid,
 } from '../controllers/bidController.js';
-import { requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { autoBidSchema, placeBidSchema } from '../validators/bidValidators.js';
@@ -16,7 +16,7 @@ export const bidRouter = express.Router();
 
 bidRouter.get('/bids/my/active', requireAuth, getMyActiveBids);
 bidRouter.get('/bids/my', requireAuth, getMyActiveBids);
-bidRouter.get('/listings/:id/bids', getBidHistory);
+bidRouter.get('/listings/:id/bids', optionalAuth, getBidHistory);
 bidRouter.post(
   '/listings/:id/bids',
   requireAuth,

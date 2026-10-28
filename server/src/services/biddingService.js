@@ -184,6 +184,7 @@ export async function placeManualBid({ listingId, bidderId, amountPaise }) {
         amountPaise: autoBidRecord ? autoBidRecord[0].amountPaise : manualBid[0].amountPaise,
         source: autoBidRecord ? 'AUTO' : 'MANUAL',
         createdAt: autoBidRecord ? autoBidRecord[0].createdAt : manualBid[0].createdAt,
+        bidderName: `Bidder ***${finalLeaderId ? finalLeaderId.toString().slice(-4) : ''}`,
       },
     };
 
@@ -339,6 +340,7 @@ export async function configureAutoBid({ listingId, bidderId, maxAmountPaise }) 
           amountPaise: targetPrice,
           source: 'AUTO',
           createdAt: now,
+          bidderName: `Bidder ***${targetLeaderId ? targetLeaderId.toString().slice(-4) : ''}`,
         },
       };
     }

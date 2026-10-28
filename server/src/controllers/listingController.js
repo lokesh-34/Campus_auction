@@ -179,19 +179,27 @@ export async function getListingById(req, res, next) {
       });
     }
 
-    // Public bid history (immutable, privacy-safe: masks sensitive internal details)
+    // Public bid history (immutable, privacy-safe: masks bidder identity from other users)
+    const currentUserId = req.user?._id?.toString();
     const bidHistory = await Bid.find({ listingId: listing._id })
-      .populate('bidderId', 'displayName')
+      .populate('bidderId', '_id')
       .sort({ createdAt: -1 })
       .limit(30);
 
-    const safeBids = bidHistory.map((b) => ({
-      id: b._id,
-      amountPaise: b.amountPaise,
-      source: b.source,
-      createdAt: b.createdAt,
-      bidderName: b.bidderId ? b.bidderId.displayName : 'Campus Bidder',
-    }));
+    const safeBids = bidHistory.map((b) => {
+      const idStr = b.bidderId?._id?.toString() || b.bidderId?.toString() || '';
+      const isMyBid = Boolean(currentUserId && idStr && idStr === currentUserId);
+      const shortSuffix = idStr ? idStr.slice(-4) : '';
+
+      return {
+        id: b._id,
+        amountPaise: b.amountPaise,
+        source: b.source,
+        createdAt: b.createdAt,
+        isMyBid,
+        bidderName: isMyBid ? 'You' : `Bidder ***${shortSuffix}`,
+      };
+    });
 
     res.json({
       success: true,

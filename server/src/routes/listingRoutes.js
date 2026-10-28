@@ -21,7 +21,7 @@ export const listingRouter = express.Router();
 
 listingRouter.get('/', optionalAuth, validateRequest({ query: queryListingsSchema }), getListings);
 listingRouter.get('/seller/me', requireAuth, getMyListings);
-listingRouter.get('/:id', getListingById);
+listingRouter.get('/:id', optionalAuth, getListingById);
 listingRouter.post(
   '/',
   requireAuth,
