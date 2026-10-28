@@ -66,6 +66,10 @@ export async function askQuestion(req, res, next) {
       type: 'NEW_QUESTION',
       listingId: listing._id.toString(),
       message: `New question on "${listing.title}": "${questionText}"`,
+      data: {
+        questionId: question._id.toString(),
+        questionText,
+      },
       eventKey: `question_${question._id}`,
     });
 

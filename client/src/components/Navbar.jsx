@@ -15,11 +15,6 @@ import {
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
 import { api } from '../services/api.js';
-import {
-  getDesktopNotificationPermission,
-  requestDesktopNotificationPermission,
-  sendTestDesktopNotification,
-} from '../services/desktopNotifications.js';
 
 export function Navbar() {
   const location = useLocation();
