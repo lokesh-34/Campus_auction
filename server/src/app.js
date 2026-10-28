@@ -16,6 +16,8 @@ import { communityRouter } from './routes/communityRoutes.js';
 import { aiRouter } from './routes/aiRoutes.js';
 import { uploadRouter } from './routes/uploadRoutes.js';
 
+import { swaggerSpec, swaggerUi } from './config/swagger.js';
+
 export const app = express();
 
 // Security headers
@@ -51,6 +53,25 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 // Rate limiting
 app.use(standardLimiter);
 
+// OpenAPI Swagger UI Interactive Testing & Spec
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'CampusBid API Docs & Testing Explorer',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'list',
+      filter: true,
+    },
+  })
+);
+
 // Register API Routes
 app.use('/api/v1', healthRouter);
 app.use('/api/v1/users', userRouter);
@@ -68,6 +89,8 @@ app.get('/', (req, res) => {
     description: 'Campus Auction Marketplace Authoritative Backend',
     version: '1.0.0',
     health: '/api/v1/health',
+    docs: '/api-docs',
+    openApiSpec: '/api-docs.json',
   });
 });
 
