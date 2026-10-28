@@ -17,6 +17,9 @@ import {
   Sparkles,
   MapPin,
   Phone,
+  Edit3,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees, rupeesToPaise } from '../utils/formatCurrency.js';
@@ -59,6 +62,22 @@ export function AuctionDetails() {
 
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, totalMs: 0 });
+
+  // Seller management state (Editing price before bids, cancelling, approving sale)
+  const [sellerSale, setSellerSale] = useState(null);
+  const [sellerActionLoading, setSellerActionLoading] = useState(false);
+  const [sellerActionMsg, setSellerActionMsg] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editPriceRupees, setEditPriceRupees] = useState('');
+  const [editMinIncrementRupees, setEditMinIncrementRupees] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPickupPoint, setEditPickupPoint] = useState('');
+  const [editSellerPhone, setEditSellerPhone] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     loadAuctionDetails();
@@ -168,6 +187,12 @@ export function AuctionDetails() {
             setMyAutoBid(null);
           }
         }).catch(() => setMyAutoBid(null));
+
+        // Load seller sale record if user is the seller
+        api.getMySales('seller').then((sales) => {
+          const sMatch = sales?.find((s) => (s.listingId?._id || s.listingId) === id);
+          if (sMatch) setSellerSale(sMatch);
+        }).catch(() => {});
       }
     } catch (err) {
       setError(err.message || 'Auction details could not be loaded.');
@@ -175,6 +200,78 @@ export function AuctionDetails() {
       setLoading(false);
     }
   }
+
+  const handleSellerApproveSale = async () => {
+    if (!sellerSale?._id) return;
+    setSellerActionLoading(true);
+    setSellerActionMsg('');
+    try {
+      await api.approveSale(sellerSale._id);
+      setSellerActionMsg('✓ Winning bid approved! The item is now reserved for campus handover.');
+      setSellerSale((prev) => (prev ? { ...prev, outcome: 'RESERVED' } : prev));
+    } catch (err) {
+      alert(err.message || 'Failed to approve sale');
+    } finally {
+      setSellerActionLoading(false);
+    }
+  };
+
+  const handleSellerRejectSale = async () => {
+    if (!confirm('Are you sure you want to decline this final price?')) return;
+    if (!sellerSale?._id) return;
+    setSellerActionLoading(true);
+    setSellerActionMsg('');
+    try {
+      await api.rejectSale(sellerSale._id);
+      setSellerActionMsg('✕ Final price declined. The auction outcome is marked as rejected.');
+      setSellerSale((prev) => (prev ? { ...prev, outcome: 'REJECTED' } : prev));
+    } catch (err) {
+      alert(err.message || 'Failed to decline price');
+    } finally {
+      setSellerActionLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const payload = {
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        pickupPoint: editPickupPoint.trim(),
+        sellerPhone: editSellerPhone.trim(),
+      };
+      if (listing.bidCount === 0) {
+        payload.startingPricePaise = rupeesToPaise(editPriceRupees);
+        if (editMinIncrementRupees) {
+          payload.minBidIncrementPaise = rupeesToPaise(editMinIncrementRupees);
+        }
+      }
+      const updated = await api.updateListing(id, payload);
+      setListing(updated);
+      setShowEditModal(false);
+    } catch (err) {
+      alert(err.message || 'Failed to update listing');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCancelAuction = async (e) => {
+    e.preventDefault();
+    if (!cancelReason.trim()) return alert('Please enter a cancellation reason.');
+    setCancelLoading(true);
+    try {
+      const updated = await api.cancelListing(id, cancelReason.trim());
+      setListing(updated);
+      setShowCancelModal(false);
+    } catch (err) {
+      alert(err.message || 'Failed to cancel auction');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   const handleManualBidSubmit = async (e) => {
     e.preventDefault();
@@ -879,8 +976,129 @@ export function AuctionDetails() {
             )}
 
             {isSeller && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
-                You are the seller of this item. Sellers are protected from bidding on their own listings.
+              <div className="space-y-3 pt-2">
+                {/* 1. Closed Auction - Seller Approval Section */}
+                {isClosed && (
+                  <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                        <Sparkles className="w-4 h-4 text-amber-600" />
+                        <span>Seller Sale Status</span>
+                      </div>
+                      <Link
+                        to="/seller-dashboard"
+                        className="text-[11px] font-bold text-amber-800 dark:text-amber-300 hover:underline"
+                      >
+                        Open Seller Dashboard ↗
+                      </Link>
+                    </div>
+
+                    {sellerActionMsg && (
+                      <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 text-emerald-900 dark:text-emerald-200 font-bold text-xs">
+                        {sellerActionMsg}
+                      </div>
+                    )}
+
+                    {(!sellerSale || sellerSale.outcome === 'PENDING_SELLER_APPROVAL') && listing.bidCount > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                          This auction closed with a winning bid of <strong>{formatPaiseToRupees(listing.currentPricePaise)}</strong>.
+                          Please approve or decline to coordinate in-person campus handover.
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={sellerActionLoading}
+                            onClick={handleSellerRejectSale}
+                            className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-white dark:hover:bg-slate-800 transition disabled:opacity-50"
+                          >
+                            Decline Price
+                          </button>
+                          <button
+                            type="button"
+                            disabled={sellerActionLoading}
+                            onClick={handleSellerApproveSale}
+                            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
+                          >
+                            {sellerActionLoading ? 'Updating...' : 'Approve & Reserve Handover'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {sellerSale?.outcome === 'RESERVED' && (
+                      <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-800 dark:text-emerald-300 font-semibold text-xs flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Winning price approved! Reserved for campus handover at {listing.pickupPoint || 'Campus Center'}.</span>
+                      </div>
+                    )}
+
+                    {listing.status === 'CANCELLED' && (
+                      <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-800 dark:text-rose-300 font-semibold text-xs">
+                        Auction cancelled by seller. Reason: {listing.cancellationReason || 'No reason specified'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Active Auction - Seller Management (Edit Price or Cancel Auction) */}
+                {!isClosed && (
+                  <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Seller Auction Management
+                      </span>
+                      {listing.bidCount === 0 ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
+                          Price Editable (0 Bids)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-md">
+                          {listing.bidCount} Active Bid(s)
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {listing.bidCount === 0
+                        ? 'No bids have been placed yet. You can edit the starting price, description, or pickup point.'
+                        : 'Active bids are placed. If you made a mistake adding this product, you can safely cancel this auction.'}
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      {listing.bidCount === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditPriceRupees((listing.startingPricePaise / 100).toString());
+                            setEditMinIncrementRupees((listing.minBidIncrementPaise / 100).toString());
+                            setEditTitle(listing.title);
+                            setEditDescription(listing.description);
+                            setEditPickupPoint(listing.pickupPoint || '');
+                            setEditSellerPhone(listing.sellerPhone || '');
+                            setShowEditModal(true);
+                          }}
+                          className="flex-1 min-w-[130px] py-2.5 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Starting Price</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCancelReason('');
+                          setShowCancelModal(true);
+                        }}
+                        className="flex-1 min-w-[130px] py-2.5 px-3 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Cancel Auction</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1038,6 +1256,189 @@ export function AuctionDetails() {
                   className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md transition"
                 >
                   {myAutoBid && myAutoBid.enabled ? 'Update Ceiling' : 'Enable Proxy AutoBid'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Edit Listing Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl max-w-lg w-full space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-brand-600" />
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100">
+                  Edit Auction Details
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
+              {listing.bidCount === 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-brand-50/50 dark:bg-brand-950/30 border border-brand-100 dark:border-brand-900">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Starting Price (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={editPriceRupees}
+                        onChange={(e) => setEditPriceRupees(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Min Bid Increment (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editMinIncrementRupees}
+                        onChange={(e) => setEditMinIncrementRupees(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows="3"
+                  required
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium"
+                ></textarea>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Pickup Point
+                  </label>
+                  <input
+                    type="text"
+                    value={editPickupPoint}
+                    onChange={(e) => setEditPickupPoint(e.target.value)}
+                    placeholder="e.g. Central Library"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Contact Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={editSellerPhone}
+                    onChange={(e) => setEditSellerPhone(e.target.value)}
+                    placeholder="e.g. +91 9876543210"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
+                >
+                  {editLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Seller Cancel Auction Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl max-w-md w-full space-y-4 shadow-2xl border border-rose-200 dark:border-rose-900 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100">
+                Cancel Active Auction
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Made a mistake when adding this product or item is no longer available? Cancelling will close this auction immediately and notify active bidders.
+            </p>
+
+            <form onSubmit={handleCancelAuction} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Cancellation Reason *
+                </label>
+                <textarea
+                  rows="3"
+                  required
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. Made mistake in listing specs, item damaged, or no longer available."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs"
+                >
+                  Keep Auction
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancelLoading}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
+                >
+                  {cancelLoading ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>
               </div>
             </form>

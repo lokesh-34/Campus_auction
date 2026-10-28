@@ -110,6 +110,10 @@ export function NotificationsPage() {
   const [replySuccess, setReplySuccess] = useState({});
   const [replyError, setReplyError] = useState({});
 
+  // Inline approval state for sale confirmations
+  const [approvalStatus, setApprovalStatus] = useState({});
+  const [actionLoading, setActionLoading] = useState({});
+
   useEffect(() => {
     loadNotifications();
   }, []);
@@ -211,6 +215,51 @@ export function NotificationsPage() {
       }));
     } finally {
       setReplyLoading((prev) => ({ ...prev, [n._id]: false }));
+    }
+  };
+
+  const handleApproveSaleFromNotif = async (n) => {
+    const saleId = n.saleId?._id || n.saleId || n.data?.saleId;
+    if (!saleId) {
+      return alert('Sale ID not found on this notification. Please open Seller Dashboard.');
+    }
+    setActionLoading((prev) => ({ ...prev, [n._id]: true }));
+    try {
+      await api.approveSale(saleId);
+      setApprovalStatus((prev) => ({
+        ...prev,
+        [n._id]: 'Winning bid approved! The item is reserved for campus handover.',
+      }));
+      if (!n.isRead) {
+        handleMarkRead(n._id);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to approve winning bid');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [n._id]: false }));
+    }
+  };
+
+  const handleRejectSaleFromNotif = async (n) => {
+    if (!confirm('Are you sure you want to decline this final price?')) return;
+    const saleId = n.saleId?._id || n.saleId || n.data?.saleId;
+    if (!saleId) {
+      return alert('Sale ID not found on this notification. Please open Seller Dashboard.');
+    }
+    setActionLoading((prev) => ({ ...prev, [n._id]: true }));
+    try {
+      await api.rejectSale(saleId);
+      setApprovalStatus((prev) => ({
+        ...prev,
+        [n._id]: 'Final price declined. The sale has been marked as rejected.',
+      }));
+      if (!n.isRead) {
+        handleMarkRead(n._id);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to decline price');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [n._id]: false }));
     }
   };
 
@@ -557,7 +606,7 @@ export function NotificationsPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 pt-1">
+                <div className="flex items-center gap-4 pt-1 flex-wrap">
                   {n.listingId && (
                     <Link
                       to={`/auctions/${n.listingId._id || n.listingId}`}
@@ -567,7 +616,63 @@ export function NotificationsPage() {
                       <ArrowRight className="w-3 h-3" />
                     </Link>
                   )}
+                  {n.type === 'SALE_APPROVAL' && (
+                    <Link
+                      to="/seller-dashboard"
+                      className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      <span>Go to Seller Dashboard</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
+
+                {/* Inline Quick Action for SALE_APPROVAL */}
+                {n.type === 'SALE_APPROVAL' && (
+                  <div
+                    className="mt-3 p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs space-y-2.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 text-xs">
+                        <Sparkles className="w-4 h-4 text-amber-600" />
+                        <span>Action Required: Approve or Decline Final Price</span>
+                      </div>
+                      <Link
+                        to="/seller-dashboard"
+                        className="text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:underline hidden sm:inline"
+                      >
+                        Open Dashboard ↗
+                      </Link>
+                    </div>
+
+                    {approvalStatus[n._id] ? (
+                      <div className="p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 text-emerald-900 dark:text-emerald-200 font-bold text-xs flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{approvalStatus[n._id]}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          disabled={actionLoading[n._id]}
+                          onClick={() => handleRejectSaleFromNotif(n)}
+                          className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
+                        >
+                          Decline Price
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading[n._id]}
+                          onClick={() => handleApproveSaleFromNotif(n)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
+                        >
+                          {actionLoading[n._id] ? 'Updating...' : 'Approve & Reserve Handover'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Inline Quick Reply for Questions */}
                 {n.type === 'NEW_QUESTION' && (

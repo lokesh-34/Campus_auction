@@ -1,6 +1,7 @@
-import { Bid, Listing, SavedSearch } from '../models/index.js';
+import { Bid, Listing, Sale, SavedSearch } from '../models/index.js';
 import { createNotification } from '../services/notificationService.js';
 import { deleteCloudinaryImage } from '../services/cloudinaryService.js';
+import { emitAuctionUpdate } from '../sockets/socketManager.js';
 
 export async function createListing(req, res, next) {
   try {
@@ -238,10 +239,40 @@ export async function updateListing(req, res, next) {
       });
     }
 
-    const { title, description, condition, images } = req.body;
+    const {
+      title,
+      description,
+      condition,
+      images,
+      startingPricePaise,
+      minBidIncrementPaise,
+      pickupPoint,
+      sellerPhone,
+    } = req.body;
 
-    // If bids have been placed, protect bidders from misleading edits
-    if (listing.bidCount > 0) {
+    // Price and condition modification rules:
+    // If bids have NOT started yet (bidCount === 0), seller can freely edit starting price and condition!
+    if (listing.bidCount === 0) {
+      if (startingPricePaise != null && startingPricePaise >= 100) {
+        listing.startingPricePaise = startingPricePaise;
+        listing.currentPricePaise = startingPricePaise; // sync current price
+      }
+      if (minBidIncrementPaise != null && minBidIncrementPaise >= 100) {
+        listing.minBidIncrementPaise = minBidIncrementPaise;
+      }
+      if (condition) listing.condition = condition;
+    } else {
+      // If bids have started, protect active bidders from price or condition tampering
+      if (startingPricePaise != null && startingPricePaise !== listing.startingPricePaise) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          error: {
+            message: 'Starting price cannot be modified once bidding has started.',
+            code: 'BIDS_EXIST',
+          },
+        });
+      }
       if (condition && condition !== listing.condition) {
         return res.status(400).json({
           success: false,
@@ -256,7 +287,8 @@ export async function updateListing(req, res, next) {
 
     if (title) listing.title = title;
     if (description) listing.description = description;
-    if (condition && listing.bidCount === 0) listing.condition = condition;
+    if (pickupPoint) listing.pickupPoint = pickupPoint;
+    if (sellerPhone != null) listing.sellerPhone = sellerPhone;
 
     // Handle image updates and cleanup obsolete images
     if (images) {
@@ -273,6 +305,17 @@ export async function updateListing(req, res, next) {
     }
 
     await listing.save();
+
+    // Broadcast live update to any viewing buyers/bidders
+    emitAuctionUpdate(listing._id.toString(), 'auction:updated', {
+      listingId: listing._id,
+      title: listing.title,
+      description: listing.description,
+      currentPricePaise: listing.currentPricePaise,
+      startingPricePaise: listing.startingPricePaise,
+      pickupPoint: listing.pickupPoint,
+      sellerPhone: listing.sellerPhone,
+    });
 
     res.json({
       success: true,
@@ -318,6 +361,12 @@ export async function cancelListing(req, res, next) {
     listing.cancellationReason = reason;
     await listing.save();
 
+    // If an associated Sale record exists, update its status as well
+    await Sale.findOneAndUpdate(
+      { listingId: listing._id },
+      { $set: { outcome: 'SELLER_CANCELLED', cancellationReason: reason } }
+    );
+
     // If bids exist, notify the leading bidder
     if (listing.leadingBidderId) {
       createNotification({
@@ -325,9 +374,16 @@ export async function cancelListing(req, res, next) {
         type: 'SALE_CANCELLED',
         listingId: listing._id.toString(),
         message: `Auction for "${listing.title}" was cancelled by the seller. Reason: ${reason}`,
-        eventKey: `cancelled_${listing._id}`,
+        eventKey: `cancelled_${listing._id}_${Date.now()}`,
       });
     }
+
+    // Broadcast auction cancellation live to all viewing clients
+    emitAuctionUpdate(listing._id.toString(), 'auction:closed', {
+      listingId: listing._id,
+      status: 'CANCELLED',
+      cancellationReason: reason,
+    });
 
     res.json({
       success: true,

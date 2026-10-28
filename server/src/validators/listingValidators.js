@@ -36,6 +36,10 @@ export const updateListingSchema = z.object({
   title: z.string().trim().min(3).max(120).optional(),
   description: z.string().trim().min(10).max(2000).optional(),
   condition: z.enum(['NEW', 'LIKE_NEW', 'GOOD', 'FAIR']).optional(),
+  startingPricePaise: z.number().int().min(100).optional(),
+  minBidIncrementPaise: z.number().int().min(100).optional(),
+  pickupPoint: z.string().trim().max(150).optional(),
+  sellerPhone: z.string().trim().max(30).optional(),
   images: z
     .array(
       z.object({

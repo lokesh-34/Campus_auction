@@ -22,6 +22,11 @@ import {
   Eye,
   Plus,
   Sparkles,
+  Edit3,
+  X,
+  MapPin,
+  Phone,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
@@ -35,6 +40,19 @@ export function SellerDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'active' | 'handovers' | 'completed'
+
+  // Edit Starting Price Modal State
+  const [editingListing, setEditingListing] = useState(null);
+  const [editPriceRupees, setEditPriceRupees] = useState('');
+  const [editIncrementRupees, setEditIncrementRupees] = useState('');
+  const [editPickupPoint, setEditPickupPoint] = useState('');
+  const [editSellerPhone, setEditSellerPhone] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Cancel Auction Modal State
+  const [cancellingListing, setCancellingListing] = useState(null);
+  const [cancelReason, setCancelReason] = useState('Listing error / incorrect specifications or pricing');
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -93,6 +111,62 @@ export function SellerDashboard() {
       alert(err.message);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleOpenEditModal = (item) => {
+    setEditingListing(item);
+    setEditPriceRupees(((item.startingPricePaise || item.currentPricePaise || 100) / 100).toString());
+    setEditIncrementRupees(((item.minBidIncrementPaise || 5000) / 100).toString());
+    setEditPickupPoint(item.pickupPoint || '');
+    setEditSellerPhone(item.sellerPhone || '');
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingListing) return;
+    setEditLoading(true);
+    try {
+      const pricePaise = Math.round(Number(editPriceRupees) * 100);
+      const incPaise = Math.round(Number(editIncrementRupees) * 100);
+      if (isNaN(pricePaise) || pricePaise < 100) {
+        alert('Starting price must be at least ₹1');
+        return;
+      }
+      await api.updateListing(editingListing._id, {
+        startingPricePaise: pricePaise,
+        minBidIncrementPaise: incPaise,
+        pickupPoint: editPickupPoint,
+        sellerPhone: editSellerPhone,
+      });
+      setMsg(`Starting price for "${editingListing.title}" successfully updated to ₹${editPriceRupees}!`);
+      setEditingListing(null);
+      await loadData();
+    } catch (err) {
+      alert(err.message || 'Failed to update listing price');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleOpenCancelModal = (item) => {
+    setCancellingListing(item);
+    setCancelReason('Listing error / incorrect specifications or pricing');
+  };
+
+  const handleConfirmCancel = async (e) => {
+    e.preventDefault();
+    if (!cancellingListing) return;
+    setCancelLoading(true);
+    try {
+      await api.cancelListing(cancellingListing._id, cancelReason);
+      setMsg(`Auction for "${cancellingListing.title}" has been cancelled.`);
+      setCancellingListing(null);
+      await loadData();
+    } catch (err) {
+      alert(err.message || 'Failed to cancel auction');
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -486,43 +560,43 @@ export function SellerDashboard() {
 
       {/* SECTION 1: Action Required (Pending Approvals) */}
       {(activeTab === 'overview' || activeTab === 'action') && stats.pendingApprovals.length > 0 && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border-2 border-amber-300 shadow-xl space-y-4 bg-amber-50/20">
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border-2 border-amber-300 dark:border-amber-800 shadow-xl space-y-4 bg-amber-50/20 dark:bg-amber-950/20">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Action Required: Approve Winning Auction Prices ({stats.pendingApprovals.length})
             </h2>
           </div>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             These campus auctions have closed with winning bids. Please confirm whether you accept the final price so the buyer can inspect and pick up the item.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             {stats.pendingApprovals.map((sale) => (
-              <div key={sale._id} className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+              <div key={sale._id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-extrabold text-[10px] uppercase tracking-wide">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] uppercase tracking-wide">
                       Awaiting Your Approval
                     </span>
-                    <h3 className="font-bold text-slate-900 text-sm mt-1.5">{sale.listingId?.title}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Winner: <strong className="text-slate-700">{sale.winnerId?.displayName || 'Campus Student'}</strong>
+                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-1.5">{sale.listingId?.title}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Winner: <strong className="text-slate-700 dark:text-slate-300">{sale.winnerId?.displayName || 'Campus Student'}</strong>
                     </p>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-slate-400 block uppercase font-bold">Winning Price</span>
-                    <span className="text-xl font-black text-emerald-600 whitespace-nowrap">
+                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatPaiseToRupees(sale.finalPricePaise)}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     disabled={actionLoading}
                     onClick={() => handleReject(sale._id)}
-                    className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition disabled:opacity-50"
+                    className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
                   >
                     Decline Price
                   </button>
@@ -542,14 +616,14 @@ export function SellerDashboard() {
 
       {/* SECTION 2: Reserved Handovers (Active Pickup Coordination) */}
       {(activeTab === 'overview' || activeTab === 'action') && stats.reservedSales.length > 0 && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-md space-y-4">
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-md space-y-4">
           <div className="flex items-center gap-2">
             <Handshake className="w-5 h-5 text-brand-600" />
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Active Campus Handovers ({stats.reservedSales.length} Reserved)
             </h2>
           </div>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             Meet the buyer at a public campus location (Hostel common room, central library, or cafeteria). Inspect the item together, exchange payment, and confirm below.
           </p>
 
@@ -557,27 +631,27 @@ export function SellerDashboard() {
             {stats.reservedSales.map((sale) => {
               const sellerConfirmed = Boolean(sale.handoverConfirmedSellerAt);
               return (
-                <div key={sale._id} className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+                <div key={sale._id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-bold text-slate-900 text-sm">{sale.listingId?.title}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Buyer: <strong className="text-slate-800">{sale.winnerId?.displayName}</strong>
+                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{sale.listingId?.title}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Buyer: <strong className="text-slate-800 dark:text-slate-200">{sale.winnerId?.displayName}</strong>
                       </p>
                     </div>
-                    <span className="text-xl font-black text-slate-900">
+                    <span className="text-xl font-black text-slate-900 dark:text-slate-100">
                       {formatPaiseToRupees(sale.finalPricePaise)}
                     </span>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50 text-[11px] text-slate-600 space-y-1.5 border border-slate-100">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5 border border-slate-100 dark:border-slate-700">
                     <div className="flex justify-between items-center">
                       <span>Status:</span>
-                      <span className="font-bold text-brand-700">Reserved for Handover</span>
+                      <span className="font-bold text-brand-700 dark:text-brand-400">Reserved for Handover</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>Seller Handover:</span>
-                      <span className={sellerConfirmed ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>
+                      <span className={sellerConfirmed ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
                         {sellerConfirmed ? 'Confirmed ✓' : 'Pending Confirmation'}
                       </span>
                     </div>
@@ -592,7 +666,7 @@ export function SellerDashboard() {
                       {actionLoading ? 'Updating...' : 'Confirm In-Person Handover'}
                     </button>
                   ) : (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 text-center text-xs text-emerald-800 font-bold border border-emerald-100">
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-center text-xs text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-100 dark:border-emerald-800">
                       Handover confirmed! Waiting for buyer verification to complete.
                     </div>
                   )}
@@ -634,38 +708,70 @@ export function SellerDashboard() {
               {stats.activeAuctions.map((item) => (
                 <div
                   key={item._id}
-                  className="p-5 rounded-2xl bg-white border border-slate-200 flex flex-col justify-between space-y-4 hover:border-brand-300 transition shadow-sm"
+                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-4 hover:border-brand-300 dark:hover:border-brand-700 transition shadow-sm"
                 >
                   <div>
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase mb-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
                         {item.category}
                       </span>
-                      <span className="text-emerald-600 font-extrabold flex items-center gap-1">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         {item.status}
                       </span>
                     </div>
-                    <h3 className="font-bold text-slate-900 text-sm line-clamp-1">{item.title}</h3>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm line-clamp-1">{item.title}</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                       {item.bidCount} {item.bidCount === 1 ? 'bid' : 'bids'} received
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Current Winning Bid</span>
-                      <span className="text-lg font-black text-slate-900">
-                        {formatPaiseToRupees(item.currentPricePaise)}
-                      </span>
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                          {item.bidCount > 0 ? 'Current High Bid' : 'Starting Price'}
+                        </span>
+                        <span className="text-lg font-black text-slate-900 dark:text-slate-100">
+                          {formatPaiseToRupees(item.currentPricePaise)}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/auctions/${item._id}`}
+                        className="px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950/60 hover:bg-brand-100 dark:hover:bg-brand-900/60 text-brand-700 dark:text-brand-300 text-xs font-bold flex items-center gap-1"
+                      >
+                        <span>View</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
-                    <Link
-                      to={`/auctions/${item._id}`}
-                      className="px-3 py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold flex items-center gap-1"
-                    >
-                      <span>View</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      {item.bidCount === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(item)}
+                          className="flex-1 py-1.5 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center justify-center gap-1"
+                          title="Edit starting price before bidding starts"
+                        >
+                          <Edit3 className="w-3 h-3 text-slate-500" />
+                          <span>Edit Price</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-400 py-1 flex-1">
+                          Price locked (bids active)
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal(item)}
+                        className="py-1.5 px-2.5 rounded-lg border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold transition flex items-center justify-center gap-1"
+                        title="Cancel this auction if a mistake was made"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Cancel</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -698,26 +804,26 @@ export function SellerDashboard() {
               {stats.completedSales.map((s) => (
                 <div
                   key={s._id}
-                  className="p-4 rounded-2xl bg-white border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:border-emerald-300 transition"
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:border-emerald-300 dark:hover:border-emerald-700 transition"
                 >
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-extrabold text-slate-900 text-sm">
+                      <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
                         {s.listingId?.title || 'Campus Auction'}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                         HANDOVER COMPLETE
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      Purchased by <strong className="text-slate-700">{s.winnerId?.displayName || 'Fellow Student'}</strong> • {new Date(s.updatedAt || s.createdAt).toLocaleDateString()}
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Purchased by <strong className="text-slate-700 dark:text-slate-300">{s.winnerId?.displayName || 'Fellow Student'}</strong> • {new Date(s.updatedAt || s.createdAt).toLocaleDateString()}
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
                     <div className="text-left sm:text-right">
                       <span className="text-[10px] text-slate-400 block uppercase font-bold">Final Settled Price</span>
-                      <span className="font-black text-emerald-600 text-base">
+                      <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">
                         {formatPaiseToRupees(s.finalPricePaise)}
                       </span>
                     </div>
@@ -726,6 +832,175 @@ export function SellerDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Starting Price Modal (Available before bids start) */}
+      {editingListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="glass-panel w-full max-w-md p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 bg-white dark:bg-slate-900">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-brand-600" />
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  Edit Starting Price
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingListing(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              No bids have been placed on <strong className="text-slate-800 dark:text-slate-200">{editingListing.title}</strong> yet. You can adjust the starting price, increment, and campus pickup details.
+            </p>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Starting Price (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={editPriceRupees}
+                    onChange={(e) => setEditPriceRupees(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Minimum Bid Increment (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={editIncrementRupees}
+                    onChange={(e) => setEditIncrementRupees(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Designated Campus Pickup Point
+                </label>
+                <input
+                  type="text"
+                  value={editPickupPoint}
+                  onChange={(e) => setEditPickupPoint(e.target.value)}
+                  placeholder="e.g. Central Library / Hostel 4 Common Room"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Seller Contact Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  value={editSellerPhone}
+                  onChange={(e) => setEditSellerPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingListing(null)}
+                  className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                >
+                  {editLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Auction Modal */}
+      {cancellingListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="glass-panel w-full max-w-md p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 bg-white dark:bg-slate-900">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-rose-600">
+                <Trash2 className="w-4 h-4" />
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  Cancel Auction
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancellingListing(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Are you sure you want to cancel the auction for <strong className="text-slate-800 dark:text-slate-200">{cancellingListing.title}</strong>?
+              {cancellingListing.bidCount > 0 && ' Active bidders will be notified that this auction has been closed.'}
+            </p>
+
+            <form onSubmit={handleConfirmCancel} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Reason for Cancellation
+                </label>
+                <textarea
+                  rows="2"
+                  required
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. Made mistake in listing details, item damaged, or incorrect price set"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCancellingListing(null)}
+                  className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Keep Active
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancelLoading}
+                  className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                >
+                  {cancelLoading ? 'Cancelling...' : 'Confirm Cancellation'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
