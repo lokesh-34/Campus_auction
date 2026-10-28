@@ -36,7 +36,7 @@ export function AiAssistantPage() {
   const [proposalSuccess, setProposalSuccess] = useState('');
   const [proposalError, setProposalError] = useState('');
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mongoUser } = useAuth();
 
   const handleSearch = async (queryString) => {
     const q = queryString || query;
@@ -187,7 +187,15 @@ export function AiAssistantPage() {
           </div>
 
           {/* AI Action Proposal Card if action intent detected */}
-          {response.suggestedAction && (
+          {response.suggestedAction && !(() => {
+            const currentUserId = (mongoUser?._id || mongoUser?.id)?.toString();
+            if (!currentUserId) return false;
+            const targetListing = (response.listings || []).find(
+              (l) => l.id?.toString() === response.suggestedAction.listingId?.toString()
+            );
+            const sellerId = (targetListing?.sellerId?._id || targetListing?.sellerId || targetListing?.seller)?.toString();
+            return sellerId === currentUserId;
+          })() && (
             <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white shadow-xl border border-purple-400/30 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-200 text-xs font-bold uppercase tracking-wider">
@@ -247,15 +255,25 @@ export function AiAssistantPage() {
             </div>
           )}
 
-          {/* Matched Listings */}
-          {response.listings?.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider px-1">
-                Authoritative Matching Auctions ({response.listings.length})
-              </h3>
+          {/* Matched Listings (Excluding Seller's Own Items) */}
+          {(() => {
+            const currentUserId = (mongoUser?._id || mongoUser?.id)?.toString();
+            const buyableListings = (response.listings || []).filter((item) => {
+              if (!currentUserId) return true;
+              const sellerId = (item.sellerId?._id || item.sellerId || item.seller)?.toString();
+              return sellerId !== currentUserId;
+            });
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {response.listings.map((item) => (
+            if (buyableListings.length === 0) return null;
+
+            return (
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider px-1">
+                  Authoritative Matching Auctions ({buyableListings.length})
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {buyableListings.map((item) => (
                   <div
                     key={item.id}
                     className="p-5 rounded-2xl glass-panel border border-slate-200 hover:border-purple-300 transition-all flex flex-col justify-between space-y-3"
@@ -308,9 +326,10 @@ export function AiAssistantPage() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

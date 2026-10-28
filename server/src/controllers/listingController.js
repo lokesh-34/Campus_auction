@@ -108,6 +108,11 @@ export async function getListings(req, res, next) {
       filter.$text = { $search: q.trim() };
     }
 
+    // Never list seller's own products in the marketplace catalog for buying
+    if (req.user && req.query.excludeOwn !== false) {
+      filter.sellerId = { $ne: req.user._id };
+    }
+
     let sort = {};
     if (sortBy === 'closingSoon') {
       sort = { closingAt: 1 };

@@ -154,10 +154,16 @@ Give a concise, helpful 2-3 sentence recommendation. Highlight the matching item
 /**
  * Process AI query against real database listings.
  * @param {string} userQuery
+ * @param {string|ObjectId|null} excludeSellerId
  */
-export async function processAiQuery(userQuery) {
+export async function processAiQuery(userQuery, excludeSellerId = null) {
   const filters = extractStructuredFilters(userQuery);
   const actionIntent = extractActionIntent(userQuery);
+
+  // Never list seller's own products for buying
+  if (excludeSellerId) {
+    filters.sellerId = { $ne: excludeSellerId };
+  }
 
   // 1. Search authoritative listings from MongoDB with parsed filters
   let matchingListings = await Listing.find(filters)
@@ -168,10 +174,13 @@ export async function processAiQuery(userQuery) {
   // 2. Fallback: If price filter yielded 0 matches but category exists,
   // search by category so the user still discovers available campus items
   if (matchingListings.length === 0 && filters.category) {
-    matchingListings = await Listing.find({
+    const fallbackCategoryFilter = {
       category: filters.category,
       status: { $in: ['ACTIVE', 'EXTENDED'] },
-    })
+      ...(excludeSellerId ? { sellerId: { $ne: excludeSellerId } } : {}),
+    };
+
+    matchingListings = await Listing.find(fallbackCategoryFilter)
       .populate('sellerId', 'displayName stats')
       .sort({ currentPricePaise: 1 })
       .limit(5);
@@ -186,10 +195,13 @@ export async function processAiQuery(userQuery) {
       .trim();
 
     if (cleanKeyword.length >= 3) {
-      matchingListings = await Listing.find({
+      const keywordFilter = {
         $text: { $search: cleanKeyword },
         status: { $in: ['ACTIVE', 'EXTENDED'] },
-      })
+        ...(excludeSellerId ? { sellerId: { $ne: excludeSellerId } } : {}),
+      };
+
+      matchingListings = await Listing.find(keywordFilter)
         .populate('sellerId', 'displayName stats')
         .limit(5);
     }
@@ -246,6 +258,7 @@ export async function processAiQuery(userQuery) {
           : item.currentPricePaise + item.minBidIncrementPaise,
       closingAt: item.closingAt,
       seller: item.sellerId ? item.sellerId.displayName : 'Campus Seller',
+      sellerId: item.sellerId?._id || item.sellerId,
       images: item.images,
     })),
     explanation,
@@ -257,11 +270,18 @@ export async function processAiQuery(userQuery) {
  * @param {string} listingId
  * @param {string} actionType - 'MANUAL_BID' | 'AUTO_BID'
  * @param {number} proposedAmountRupees
+ * @param {string|ObjectId|null} userId
  */
-export async function proposeBiddingAction(listingId, actionType, proposedAmountRupees) {
+export async function proposeBiddingAction(listingId, actionType, proposedAmountRupees, userId = null) {
   const listing = await Listing.findById(listingId);
   if (!listing) {
     throw new Error('Listing not found');
+  }
+
+  if (userId && listing.sellerId.toString() === userId.toString()) {
+    const err = new Error('Sellers cannot bid on or buy their own listings.');
+    err.statusCode = 400;
+    throw err;
   }
 
   const proposedAmountPaise = Math.round(proposedAmountRupees * 100);

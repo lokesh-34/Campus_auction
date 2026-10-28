@@ -11,7 +11,8 @@ export async function queryAiAssistant(req, res, next) {
       });
     }
 
-    const result = await processAiQuery(query.trim());
+    const excludeSellerId = req.user ? req.user._id : null;
+    const result = await processAiQuery(query.trim(), excludeSellerId);
 
     res.json({
       success: true,
@@ -34,7 +35,12 @@ export async function proposeBid(req, res, next) {
       });
     }
 
-    const proposal = await proposeBiddingAction(listingId, actionType, Number(proposedAmountRupees));
+    const proposal = await proposeBiddingAction(
+      listingId,
+      actionType,
+      Number(proposedAmountRupees),
+      req.user?._id
+    );
 
     res.json({
       success: true,

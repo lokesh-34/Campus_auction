@@ -68,6 +68,7 @@ export const queryListingsSchema = z.object({
   maxPrice: z.coerce.number().int().min(0).optional(),
   status: z.enum(['ACTIVE', 'EXTENDED', 'CLOSED', 'CANCELLED', 'ALL']).default('ACTIVE'),
   sortBy: z.enum(['closingSoon', 'priceAsc', 'priceDesc', 'newest']).default('closingSoon'),
+  excludeOwn: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });

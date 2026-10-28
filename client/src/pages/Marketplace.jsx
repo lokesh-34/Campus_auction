@@ -87,7 +87,7 @@ function CountdownBadge({ closingAt, status }) {
 
 export function Marketplace() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mongoUser } = useAuth();
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +106,7 @@ export function Marketplace() {
 
   useEffect(() => {
     fetchListings();
-  }, [category, search, condition, sortBy, page]);
+  }, [category, search, condition, sortBy, page, mongoUser]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -127,6 +127,7 @@ export function Marketplace() {
         sortBy,
         page,
         limit: 12,
+        excludeOwn: true,
       });
       setListings(res.listings || []);
       setPagination(res.pagination || { page: 1, totalPages: 1, total: 0 });
@@ -136,6 +137,15 @@ export function Marketplace() {
       setLoading(false);
     }
   }
+
+  // Never list seller's own products for buying
+  const displayListings = mongoUser
+    ? listings.filter((item) => {
+        const sellerId = item.sellerId?._id || item.sellerId;
+        const currentUserId = mongoUser._id || mongoUser.id;
+        return sellerId?.toString() !== currentUserId?.toString();
+      })
+    : listings;
 
   const updateParam = (key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -290,7 +300,7 @@ export function Marketplace() {
             Try Again
           </button>
         </div>
-      ) : listings.length === 0 ? (
+      ) : displayListings.length === 0 ? (
         <div className="p-16 text-center glass-panel rounded-3xl space-y-4">
           <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
             <Search className="w-7 h-7" />
@@ -311,7 +321,7 @@ export function Marketplace() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {listings.map((item) => {
+          {displayListings.map((item) => {
             const isWatched = watchlistIds.includes(item._id);
             const mainImage =
               item.images?.[0]?.secureUrl ||
