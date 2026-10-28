@@ -26,6 +26,18 @@ const userSchema = new mongoose.Schema(
       publicId: { type: String },
       secureUrl: { type: String },
     },
+    phoneNumber: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 30,
+    },
+    pickupPoint: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 150,
+    },
     accountStatus: {
       type: String,
       enum: ['ACTIVE', 'SUSPENDED'],

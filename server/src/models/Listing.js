@@ -96,6 +96,18 @@ const listingSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    pickupPoint: {
+      type: String,
+      trim: true,
+      default: 'Campus Central Library / Student Activity Center',
+      maxlength: 150,
+    },
+    sellerPhone: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 30,
+    },
     closingAt: {
       type: Date,
       required: true,

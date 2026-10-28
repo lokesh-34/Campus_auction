@@ -61,6 +61,16 @@ const saleSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    pickupPoint: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    sellerPhone: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
   {
     timestamps: true,
