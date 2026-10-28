@@ -60,31 +60,31 @@
 ## 🏛️ System Architecture
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph Client ["Client (React + Vite + Tailwind)"]
-        UI[Tailwind UI & Pages]
-        AuthCtx[Firebase Auth Context]
-        SocketCtx[Socket.IO Client]
-        APIService[Fetch API Client]
+        UI["Tailwind UI & Pages"]
+        AuthCtx["Firebase Auth Context"]
+        SocketCtx["Socket.IO Client"]
+        APIService["Fetch API Client"]
     end
 
     subgraph Server ["Backend (Node.js + Express ESM)"]
-        Router[Express REST Routes /api/v1]
-        Swagger[OpenAPI Swagger UI /api-docs]
-        SocketMgr[Socket.IO Real-Time Manager]
-        Worker[Durable Auction Closure Worker]
-        AuthMW[Firebase Admin Auth Middleware]
-        RateMW[Rate Limiter & Helmet]
+        Router["Express REST Routes /api/v1"]
+        Swagger["OpenAPI Swagger UI /api-docs"]
+        SocketMgr["Socket.IO Real-Time Manager"]
+        Worker["Durable Auction Closure Worker"]
+        AuthMW["Firebase Admin Auth Middleware"]
+        RateMW["Rate Limiter & Helmet"]
     end
 
     subgraph External ["External Services"]
-        Firebase[(Firebase Auth)]
-        Cloudinary[(Cloudinary Storage)]
-        Gemini[(Google Gemini AI)]
+        Firebase["Firebase Auth"]
+        Cloudinary["Cloudinary Storage"]
+        Gemini["Google Gemini AI"]
     end
 
     subgraph Database ["Data Layer"]
-        MongoDB[(MongoDB Replica Set)]
+        MongoDB[("MongoDB Replica Set")]
     end
 
     UI --> AuthCtx
@@ -94,14 +94,14 @@ graph TD
     APIService -->|HTTP Requests / Bearer Token| RateMW
     RateMW --> AuthMW
     AuthMW --> Router
-    SocketCtx <-->|WebSockets (Rooms: auction:id, user:id)| SocketMgr
+    SocketCtx <-->|WebSockets - Auction and User Rooms| SocketMgr
     
     AuthMW -.->|Verify JWT| Firebase
     Router -->|Sign Direct Uploads| Cloudinary
     Router -->|Natural Language Grounding| Gemini
     Router -->|ACID Multi-Document Transactions| MongoDB
-    Worker -->|Reconcile Overdue Auctions (Every 10s)| MongoDB
-    Worker -.->|Notify Winner & Seller| SocketMgr
+    Worker -->|Reconcile Overdue Auctions Every 10s| MongoDB
+    Worker -.->|Notify Winner and Seller| SocketMgr
     Router -.->|Emit Price Updates| SocketMgr
 ```
 
