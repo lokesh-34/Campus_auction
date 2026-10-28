@@ -15,6 +15,11 @@ import {
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
 import { api } from '../services/api.js';
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  sendTestDesktopNotification,
+} from '../services/desktopNotifications.js';
 
 export function Navbar() {
   const location = useLocation();
@@ -183,6 +188,27 @@ export function Navbar() {
                       <Bell className="w-4 h-4 text-amber-500" />
                       <span>Notification Centre</span>
                     </Link>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          await requestDesktopNotificationPermission();
+                          sendTestDesktopNotification();
+                        } catch (e) {
+                          console.error(e);
+                        }
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full text-left flex items-center justify-between px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        <span>Desktop OS Alerts</span>
+                      </span>
+                      <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md">
+                        {getDesktopNotificationPermission() === 'granted' ? 'Active ✓' : 'Enable'}
+                      </span>
+                    </button>
 
                     <div className="border-t border-slate-100 my-1"></div>
 

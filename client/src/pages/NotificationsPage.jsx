@@ -10,17 +10,44 @@ import {
   AlertTriangle,
   MessageCircle,
   ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { api } from '../services/api.js';
+import {
+  getDesktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  sendTestDesktopNotification,
+  isDesktopNotificationSupported,
+} from '../services/desktopNotifications.js';
 
 export function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [desktopPermission, setDesktopPermission] = useState(getDesktopNotificationPermission());
+  const [testSent, setTestSent] = useState(false);
 
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  const handleEnableDesktop = async () => {
+    try {
+      const perm = await requestDesktopNotificationPermission();
+      setDesktopPermission(perm);
+      if (perm === 'granted') {
+        sendTestDesktopNotification();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleTestNotification = () => {
+    sendTestDesktopNotification();
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
 
   async function loadNotifications() {
     setLoading(true);
@@ -85,7 +112,7 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-bold uppercase mb-2">
@@ -107,6 +134,72 @@ export function NotificationsPage() {
             <span>Mark All as Read ({unreadCount})</span>
           </button>
         )}
+      </div>
+
+      {/* Desktop Notification Integration Card */}
+      <div className="glass-panel p-5 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-white to-white">
+        <div className="flex items-start gap-3.5">
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+            desktopPermission === 'granted'
+              ? 'bg-emerald-100 text-emerald-700'
+              : desktopPermission === 'denied'
+              ? 'bg-rose-100 text-rose-700'
+              : 'bg-purple-100 text-purple-700'
+          }`}>
+            {desktopPermission === 'granted' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            ) : desktopPermission === 'denied' ? (
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+            ) : (
+              <Bell className="w-5 h-5 text-purple-600 animate-bounce" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-slate-900 text-sm">Desktop OS Notifications</h3>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                desktopPermission === 'granted'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : desktopPermission === 'denied'
+                  ? 'bg-rose-100 text-rose-800'
+                  : 'bg-amber-100 text-amber-800'
+              }`}>
+                {desktopPermission === 'granted'
+                  ? 'Active'
+                  : desktopPermission === 'denied'
+                  ? 'Blocked'
+                  : 'Not Enabled'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5 max-w-lg">
+              {desktopPermission === 'granted'
+                ? 'Live alerts are enabled on your computer. You will receive native popups and sound chimes when someone outbids you, when an auction closes, or when a seller replies.'
+                : desktopPermission === 'denied'
+                ? 'Notifications are blocked in your browser settings. To enable, click the tune/lock icon in your browser URL address bar and allow Notifications.'
+                : 'Never miss an auction win or outbid! Enable native desktop alerts to receive updates even when this tab is in the background.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          {desktopPermission === 'granted' ? (
+            <button
+              onClick={handleTestNotification}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+              <span>{testSent ? 'Alert Sent! ✓' : 'Send Test Alert'}</span>
+            </button>
+          ) : desktopPermission === 'default' ? (
+            <button
+              onClick={handleEnableDesktop}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2"
+            >
+              <Bell className="w-4 h-4" />
+              <span>Enable Desktop Alerts</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {notifications.length === 0 ? (

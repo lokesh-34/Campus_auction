@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext.jsx';
+import { showDesktopNotification } from '../services/desktopNotifications.js';
 
 const SocketContext = createContext(null);
 
@@ -8,6 +9,8 @@ export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const { mongoUser } = useAuth();
+
+  const userId = mongoUser?.id || mongoUser?._id;
 
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
@@ -18,8 +21,8 @@ export function SocketProvider({ children }) {
 
     socketInstance.on('connect', () => {
       setIsConnected(true);
-      if (mongoUser?.id) {
-        socketInstance.emit('user:join', mongoUser.id);
+      if (userId) {
+        socketInstance.emit('user:join', userId.toString());
       }
     });
 
@@ -35,10 +38,32 @@ export function SocketProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (socket && isConnected && mongoUser?.id) {
-      socket.emit('user:join', mongoUser.id);
+    if (socket && isConnected && userId) {
+      socket.emit('user:join', userId.toString());
     }
-  }, [socket, isConnected, mongoUser?.id]);
+  }, [socket, isConnected, userId]);
+
+  // Listen for live user notifications and dispatch desktop OS alerts
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewNotification = (notif) => {
+      showDesktopNotification({
+        type: notif.type,
+        body: notif.message,
+        listingId: notif.listingId,
+        saleId: notif.saleId,
+        tag: `notif_${notif.id || Date.now()}`,
+        playSound: true,
+      });
+    };
+
+    socket.on('notification:new', handleNewNotification);
+
+    return () => {
+      socket.off('notification:new', handleNewNotification);
+    };
+  }, [socket, isConnected]);
 
   const joinAuction = (listingId) => {
     if (socket && isConnected && listingId) {
