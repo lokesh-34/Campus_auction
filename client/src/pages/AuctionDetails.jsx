@@ -606,6 +606,41 @@ export function AuctionDetails() {
               </div>
             </div>
 
+            {/* Active AutoBid Banner */}
+            {myAutoBid && myAutoBid.enabled && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-purple-50/80 to-indigo-50 border border-purple-200 text-purple-950 text-xs flex items-start justify-between gap-3 shadow-sm animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-purple-500/20">
+                    <Zap className="w-4 h-4 fill-white animate-pulse" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-sm text-purple-950">
+                        AutoBid Active for this Item
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-200 text-purple-900 uppercase tracking-wider">
+                        Proxy Defending
+                      </span>
+                    </div>
+                    <p className="text-purple-800 leading-relaxed text-xs">
+                      Proxy automatic bidding is actively defending your lead up to{' '}
+                      <strong className="text-purple-950 font-black">
+                        {formatPaiseToRupees(myAutoBid.maxAmountPaise)}
+                      </strong>
+                      . It will automatically match competitor bids by the minimum increment.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAutoBidModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-purple-300 hover:bg-purple-100 text-purple-800 font-bold text-xs shadow-sm transition whitespace-nowrap shrink-0"
+                >
+                  Manage / Cancel
+                </button>
+              </div>
+            )}
+
             {/* Highest Bidder status alert */}
             {isHighestBidder && (
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3 shadow-sm">
@@ -715,11 +750,19 @@ export function AuctionDetails() {
                   <button
                     type="button"
                     onClick={() => setShowAutoBidModal(true)}
-                    className="px-4 py-3.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1.5 shrink-0"
+                    className={`px-4 py-3.5 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 shrink-0 ${
+                      myAutoBid && myAutoBid.enabled
+                        ? 'bg-purple-100 border-purple-300 text-purple-900 shadow-sm hover:bg-purple-200 ring-2 ring-purple-400/40'
+                        : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                    }`}
                     title="Automatic Proxy Bidding"
                   >
-                    <Lock className="w-3.5 h-3.5 text-brand-600" />
-                    <span>AutoBid</span>
+                    <Zap className={`w-3.5 h-3.5 ${myAutoBid && myAutoBid.enabled ? 'text-purple-700 fill-purple-700 animate-pulse' : 'text-brand-600'}`} />
+                    <span>
+                      {myAutoBid && myAutoBid.enabled
+                        ? `AutoBid Active (₹${myAutoBid.maxAmountPaise / 100})`
+                        : 'AutoBid'}
+                    </span>
                   </button>
                 </div>
               </form>
@@ -823,6 +866,23 @@ export function AuctionDetails() {
               Set your private maximum ceiling. The system will automatically place minimum incremental bids to keep you in the lead, but will <strong>never exceed</strong> your ceiling.
             </p>
 
+            {myAutoBid && myAutoBid.enabled && (
+              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 text-purple-900 text-xs space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-purple-600 fill-purple-600 animate-pulse" />
+                    Currently Active AutoBid:
+                  </span>
+                  <span className="font-black text-sm text-purple-950">
+                    {formatPaiseToRupees(myAutoBid.maxAmountPaise)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-purple-700 leading-relaxed">
+                  Your proxy auto-bidder will defend your lead up to this ceiling. You can update your ceiling below, or cancel it anytime.
+                </p>
+              </div>
+            )}
+
             <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
               <span>Your maximum ceiling is 100% private and never visible to other bidders or the seller.</span>
@@ -831,7 +891,7 @@ export function AuctionDetails() {
             <form onSubmit={handleSetAutoBid} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Private Maximum Ceiling (₹)
+                  {myAutoBid && myAutoBid.enabled ? 'New Private Maximum Ceiling (₹)' : 'Private Maximum Ceiling (₹)'}
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-2.5 text-slate-400 font-bold">₹</span>
@@ -850,15 +910,24 @@ export function AuctionDetails() {
                 <button
                   type="button"
                   onClick={() => setShowAutoBidModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs transition"
                 >
-                  Cancel
+                  Close
                 </button>
+                {myAutoBid && myAutoBid.enabled && (
+                  <button
+                    type="button"
+                    onClick={handleDisableAutoBid}
+                    className="px-3 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition whitespace-nowrap"
+                  >
+                    Disable AutoBid
+                  </button>
+                )}
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md"
+                  className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md transition"
                 >
-                  Enable Proxy AutoBid
+                  {myAutoBid && myAutoBid.enabled ? 'Update Ceiling' : 'Enable Proxy AutoBid'}
                 </button>
               </div>
             </form>
