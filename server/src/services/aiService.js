@@ -44,24 +44,72 @@ export function extractStructuredFilters(query) {
 }
 
 /**
+ * Generate natural language explanation using Gemini or Groq based on real listings.
+ * @param {string} userQuery
+ * @param {Array} listings
+ * @returns {Promise<string>}
+ */
+async function generateAiExplanation(userQuery, listings) {
+  const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
+
+  if (listings.length === 0) {
+    return `I searched our active campus listings for "${userQuery}", but could not find an exact active auction matching those criteria right now. Consider saving this search so you get notified when a fellow student posts one!`;
+  }
+
+  const listingSummary = listings
+    .map(
+      (l, idx) =>
+        `${idx + 1}. "${l.title}" (${l.category}, Condition: ${l.condition}) - Current bid: ₹${l.currentPricePaise / 100}, Closing at: ${new Date(l.closingAt).toLocaleTimeString()}`
+    )
+    .join('\n');
+
+  if (apiKey) {
+    try {
+      const prompt = `You are CampusBid AI, a friendly campus marketplace assistant.
+The student asked: "${userQuery}".
+Here are the actual matching active listings in the campus database:
+${listingSummary}
+
+Give a concise, helpful 2-3 sentence recommendation explaining why these items match their search and noting their current auction prices. Do not invent any facts, items, or numbers not listed above.`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 200, temperature: 0.2 },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+        return data.candidates[0].content.parts[0].text.trim();
+      }
+    } catch (err) {
+      console.warn('Gemini explanation fallback:', err.message);
+    }
+  }
+
+  return `I found ${listings.length} active campus auction(s) matching your request:`;
+}
+
+/**
  * Process AI query against real database listings.
  * @param {string} userQuery
  */
 export async function processAiQuery(userQuery) {
   const filters = extractStructuredFilters(userQuery);
 
-  // Search authoritative listings
+  // Search authoritative listings from MongoDB
   const matchingListings = await Listing.find(filters)
     .populate('sellerId', 'displayName stats')
     .sort({ closingAt: 1 })
     .limit(5);
 
-  let explanation = '';
-  if (matchingListings.length === 0) {
-    explanation = `I searched our active campus listings for "${userQuery}", but did not find an exact match under those criteria. Would you like to create a Saved Search so you get notified when one is listed?`;
-  } else {
-    explanation = `I found ${matchingListings.length} active campus auction(s) matching your request:`;
-  }
+  const explanation = await generateAiExplanation(userQuery, matchingListings);
 
   return {
     query: userQuery,
@@ -73,7 +121,10 @@ export async function processAiQuery(userQuery) {
       condition: item.condition,
       currentPricePaise: item.currentPricePaise,
       currentPriceRupees: item.currentPricePaise / 100,
-      minNextBidPaise: item.bidCount === 0 ? item.startingPricePaise : item.currentPricePaise + item.minBidIncrementPaise,
+      minNextBidPaise:
+        item.bidCount === 0
+          ? item.startingPricePaise
+          : item.currentPricePaise + item.minBidIncrementPaise,
       closingAt: item.closingAt,
       seller: item.sellerId ? item.sellerId.displayName : 'Campus Seller',
       images: item.images,
