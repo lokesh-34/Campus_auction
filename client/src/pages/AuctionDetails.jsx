@@ -154,11 +154,16 @@ export function AuctionDetails() {
       if (isAuthenticated) {
         api.getWatchlist().then((items) => {
           setIsWatched(items.some((it) => it._id === id));
-        });
+        }).catch(() => {});
 
         api.getMyAutoBid(id).then((ab) => {
-          if (ab) setMyAutoBid(ab);
-        });
+          if (ab && ab.enabled) {
+            setMyAutoBid(ab);
+            setAutoBidCeilingRupees((ab.maxAmountPaise / 100).toString());
+          } else {
+            setMyAutoBid(null);
+          }
+        }).catch(() => setMyAutoBid(null));
       }
     } catch (err) {
       setError(err.message || 'Auction details could not be loaded.');
@@ -171,6 +176,10 @@ export function AuctionDetails() {
     e.preventDefault();
     if (!isAuthenticated) {
       return navigate('/login', { state: { from: { pathname: `/auctions/${id}` } } });
+    }
+
+    if (isHighestBidder) {
+      return setBidError('You are already the highest bidder for this auction.');
     }
 
     setBidError('');
@@ -186,8 +195,32 @@ export function AuctionDetails() {
     try {
       const res = await api.placeBid(id, amountPaise);
       setBidSuccess(`🎉 Bid of ${formatPaiseToRupees(amountPaise)} successfully accepted!`);
-      setMinNextBidPaise(res.listing.currentPricePaise + (listing.minBidIncrementPaise || 5000));
-      setBidAmountRupees(((res.listing.currentPricePaise + (listing.minBidIncrementPaise || 5000)) / 100).toString());
+      const nextMin = res.listing.currentPricePaise + (listing.minBidIncrementPaise || 5000);
+      setMinNextBidPaise(nextMin);
+      setBidAmountRupees((nextMin / 100).toString());
+
+      // Update listing in state immediately so isHighestBidder takes effect right away
+      setListing((prev) => ({
+        ...prev,
+        ...res.listing,
+        currentPricePaise: res.listing.currentPricePaise,
+        leadingBidderId: res.listing.leadingBidderId || (mongoUser?.id || mongoUser?._id),
+        bidCount: res.listing.bidCount,
+        closingAt: res.listing.closingAt,
+        status: res.listing.status,
+      }));
+
+      // Prepend the new bid to local history
+      setBidHistory((prev) => [
+        {
+          id: res.acceptedBid?.id || Date.now().toString(),
+          amountPaise: res.acceptedBid?.amountPaise || amountPaise,
+          source: 'MANUAL',
+          createdAt: res.acceptedBid?.createdAt || new Date().toISOString(),
+          bidderName: 'You',
+        },
+        ...prev,
+      ]);
     } catch (err) {
       setBidError(err.message || 'Failed to place bid.');
     } finally {
@@ -208,8 +241,27 @@ export function AuctionDetails() {
       setMyAutoBid(res.autobid);
       setShowAutoBidModal(false);
       setBidSuccess(`🛡️ Automatic proxy bidding configured up to ${formatPaiseToRupees(maxPaise)}!`);
+      if (res.currentPricePaise) {
+        setListing((prev) => ({
+          ...prev,
+          currentPricePaise: res.currentPricePaise,
+          leadingBidderId: res.leadingBidderId,
+        }));
+      }
     } catch (err) {
       setBidError(err.message || 'Failed to configure AutoBid.');
+    }
+  };
+
+  const handleDisableAutoBid = async () => {
+    try {
+      await api.disableAutoBid(id);
+      setMyAutoBid(null);
+      setAutoBidCeilingRupees('');
+      setShowAutoBidModal(false);
+      setBidSuccess('AutoBid proxy has been disabled for this listing.');
+    } catch (err) {
+      setBidError(err.message || 'Failed to disable AutoBid.');
     }
   };
 
@@ -273,8 +325,33 @@ export function AuctionDetails() {
     );
   }
 
-  const isSeller = mongoUser && listing.sellerId?._id?.toString() === mongoUser.id?.toString();
-  const isLeader = mongoUser && listing.leadingBidderId?.toString() === mongoUser.id?.toString();
+  const currentUserId = mongoUser?.id?.toString() || mongoUser?._id?.toString();
+  const sellerId =
+    typeof listing.sellerId === 'object' && listing.sellerId !== null
+      ? (listing.sellerId._id || listing.sellerId.id)?.toString()
+      : listing.sellerId?.toString();
+  const leadingBidderId =
+    typeof listing.leadingBidderId === 'object' && listing.leadingBidderId !== null
+      ? (listing.leadingBidderId._id || listing.leadingBidderId.id)?.toString()
+      : listing.leadingBidderId?.toString();
+
+  const isSeller = Boolean(currentUserId && sellerId && currentUserId === sellerId);
+  const isLeader = Boolean(currentUserId && leadingBidderId && currentUserId === leadingBidderId);
+
+  // Check if top bid in bidHistory was placed by the current user
+  const topBid = bidHistory?.[0];
+  const isTopBidder = Boolean(
+    topBid && (
+      topBid.bidderName === 'You' ||
+      (currentUserId && (
+        topBid.bidderId?._id?.toString() === currentUserId ||
+        topBid.bidderId?.id?.toString() === currentUserId ||
+        topBid.bidderId?.toString() === currentUserId
+      ))
+    )
+  );
+
+  const isHighestBidder = isLeader || isTopBidder;
   const isClosed = listing.status === 'CLOSED' || timeLeft.totalMs <= 0;
   const isExtended = listing.status === 'EXTENDED';
 
@@ -292,12 +369,20 @@ export function AuctionDetails() {
           <span className="text-slate-400 truncate max-w-xs">{listing.title}</span>
         </div>
 
-        {isExtended && (
-          <div className="badge-sniping text-xs px-3 py-1">
-            <Zap className="w-3.5 h-3.5 text-amber-600" />
-            <span>Anti-Sniping 60s Extension Activated!</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {myAutoBid && myAutoBid.enabled && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 border border-purple-200 text-purple-800 shadow-sm animate-pulse">
+              <Zap className="w-3.5 h-3.5 text-purple-600 fill-purple-600" />
+              <span>AutoBid Active: Up to {formatPaiseToRupees(myAutoBid.maxAmountPaise)}</span>
+            </div>
+          )}
+          {isExtended && (
+            <div className="badge-sniping text-xs px-3 py-1">
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              <span>Anti-Sniping 60s Extension Activated!</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -311,10 +396,16 @@ export function AuctionDetails() {
                 alt={listing.title}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-4 left-4">
+              <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
                 <span className="badge-live shadow-md bg-white/95 backdrop-blur-md">
                   {listing.status}
                 </span>
+                {myAutoBid && myAutoBid.enabled && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-purple-600 text-white shadow-md shadow-purple-500/20 backdrop-blur-md animate-pulse">
+                    <Zap className="w-3.5 h-3.5 fill-white" />
+                    <span>AutoBid Active: Up to {formatPaiseToRupees(myAutoBid.maxAmountPaise)}</span>
+                  </span>
+                )}
               </div>
               <div className="absolute top-4 right-4">
                 <button
@@ -515,11 +606,18 @@ export function AuctionDetails() {
               </div>
             </div>
 
-            {/* Leader status alert */}
-            {isLeader && (
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>You are currently the leading bidder on this auction!</span>
+            {/* Highest Bidder status alert */}
+            {isHighestBidder && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3 shadow-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-extrabold text-sm text-emerald-900">
+                    You are the highest bidder!
+                  </p>
+                  <p className="text-emerald-700 mt-0.5 leading-relaxed">
+                    Your bid of {formatPaiseToRupees(listing.currentPricePaise)} is currently the winning bid. The bid button is disabled to prevent you from outbidding yourself.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -555,11 +653,23 @@ export function AuctionDetails() {
                       type="number"
                       step="1"
                       required
+                      disabled={isHighestBidder || biddingLoading}
                       value={bidAmountRupees}
                       onChange={(e) => setBidAmountRupees(e.target.value)}
-                      className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-300 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className={`w-full pl-8 pr-4 py-2.5 rounded-xl border text-base font-black transition ${
+                        isHighestBidder
+                          ? 'bg-slate-100/80 border-slate-200 text-slate-400 cursor-not-allowed select-none'
+                          : 'border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500'
+                      }`}
                     />
                   </div>
+
+                  {isHighestBidder && (
+                    <p className="text-[11px] text-emerald-700 font-medium mt-1.5 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline shrink-0" />
+                      <span>You hold the highest bid on this item. Bidding is disabled to protect your lead.</span>
+                    </p>
+                  )}
 
                   {/* Quick increment buttons */}
                   <div className="flex gap-2 mt-2">
@@ -567,10 +677,11 @@ export function AuctionDetails() {
                       <button
                         type="button"
                         key={inc}
+                        disabled={isHighestBidder}
                         onClick={() =>
                           setBidAmountRupees(((minNextBidPaise + inc * 100) / 100).toString())
                         }
-                        className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+                        className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         +₹{inc}
                       </button>
@@ -581,11 +692,24 @@ export function AuctionDetails() {
                 <div className="flex gap-3">
                   <button
                     type="submit"
-                    disabled={biddingLoading}
-                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-extrabold text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    disabled={biddingLoading || isHighestBidder}
+                    className={
+                      isHighestBidder
+                        ? 'flex-1 py-3.5 rounded-xl bg-emerald-50 border-2 border-emerald-300 text-emerald-800 font-extrabold text-sm shadow-sm cursor-not-allowed flex items-center justify-center gap-2 transition'
+                        : 'flex-1 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-extrabold text-sm shadow-md transition disabled:opacity-50 flex items-center justify-center gap-2'
+                    }
                   >
-                    <span>{biddingLoading ? 'Placing Bid...' : 'Place Bid Now'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isHighestBidder ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Highest Bidder (Winning)</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{biddingLoading ? 'Placing Bid...' : 'Place Bid Now'}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
 
                   <button
