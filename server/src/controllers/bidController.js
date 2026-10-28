@@ -131,3 +131,137 @@ export async function getBidHistory(req, res, next) {
     next(err);
   }
 }
+
+export async function getMyActiveBids(req, res, next) {
+  try {
+    const userId = req.user._id;
+
+    // Find all listing IDs where the user has placed bids or has an active autobid
+    const [bidListingIds, autoBidListingIds] = await Promise.all([
+      Bid.distinct('listingId', { bidderId: userId }),
+      AutoBid.distinct('listingId', { bidderId: userId, enabled: true }),
+    ]);
+
+    const allListingIds = Array.from(
+      new Set([
+        ...bidListingIds.map((id) => id.toString()),
+        ...autoBidListingIds.map((id) => id.toString()),
+      ])
+    );
+
+    if (allListingIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+      });
+    }
+
+    const now = new Date();
+    // Only fetch listings that are currently active or extended and not past closing time
+    const activeListings = await Listing.find({
+      _id: { $in: allListingIds },
+      status: { $in: ['ACTIVE', 'EXTENDED'] },
+      closingAt: { $gt: now },
+    })
+      .populate('sellerId', 'displayName')
+      .sort({ closingAt: 1 });
+
+    if (activeListings.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+      });
+    }
+
+    const activeIds = activeListings.map((l) => l._id);
+
+    // Aggregate user's highest bid and latest bid info per active listing
+    const [userBidsAgg, autoBids] = await Promise.all([
+      Bid.aggregate([
+        {
+          $match: {
+            listingId: { $in: activeIds },
+            bidderId: userId,
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $group: {
+            _id: '$listingId',
+            myHighestBidPaise: { $max: '$amountPaise' },
+            latestBidAmountPaise: { $first: '$amountPaise' },
+            myBidCount: { $sum: 1 },
+            latestBidCreatedAt: { $first: '$createdAt' },
+          },
+        },
+      ]),
+      AutoBid.find({
+        listingId: { $in: activeIds },
+        bidderId: userId,
+        enabled: true,
+      }),
+    ]);
+
+    const bidMap = new Map();
+    userBidsAgg.forEach((b) => bidMap.set(b._id.toString(), b));
+
+    const autoBidMap = new Map();
+    autoBids.forEach((ab) => autoBidMap.set(ab.listingId.toString(), ab));
+
+    const result = activeListings.map((listing) => {
+      const listingIdStr = listing._id.toString();
+      const bidInfo = bidMap.get(listingIdStr);
+      const autoBid = autoBidMap.get(listingIdStr);
+
+      const isLeading = Boolean(
+        listing.leadingBidderId && listing.leadingBidderId.toString() === userId.toString()
+      );
+
+      const minNextBidPaise =
+        listing.bidCount === 0
+          ? listing.startingPricePaise
+          : listing.currentPricePaise + (listing.minBidIncrementPaise || 5000);
+
+      const myHighestBidPaise = bidInfo?.myHighestBidPaise || 0;
+
+      return {
+        _id: listing._id,
+        listingId: listing._id,
+        title: listing.title,
+        category: listing.category,
+        condition: listing.condition,
+        images: listing.images || [],
+        startingPricePaise: listing.startingPricePaise,
+        currentPricePaise: listing.currentPricePaise,
+        minBidIncrementPaise: listing.minBidIncrementPaise,
+        minNextBidPaise,
+        bidCount: listing.bidCount,
+        status: listing.status,
+        closingAt: listing.closingAt,
+        pickupPoint: listing.pickupPoint,
+        seller: listing.sellerId
+          ? {
+              _id: listing.sellerId._id,
+              displayName: listing.sellerId.displayName,
+            }
+          : null,
+        isLeading,
+        bidStatus: isLeading ? 'LEADING' : 'OUTBID',
+        myHighestBidPaise,
+        myBidCount: bidInfo?.myBidCount || 0,
+        latestBidCreatedAt: bidInfo?.latestBidCreatedAt || null,
+        hasAutoBid: Boolean(autoBid),
+        autoBidMaxPaise: autoBid?.maxAmountPaise || null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

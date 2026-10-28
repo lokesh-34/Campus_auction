@@ -60,6 +60,7 @@ export const api = {
   placeBid: (listingId, amountPaise) =>
     request(`/listings/${listingId}/bids`, { method: 'POST', body: JSON.stringify({ amountPaise }) }),
   getBidHistory: (listingId) => request(`/listings/${listingId}/bids`),
+  getMyActiveBids: () => request('/bids/my/active'),
   setAutoBid: (listingId, maxAmountPaise) =>
     request(`/listings/${listingId}/autobid`, { method: 'POST', body: JSON.stringify({ maxAmountPaise }) }),
   getMyAutoBid: (listingId) => request(`/listings/${listingId}/autobid`),

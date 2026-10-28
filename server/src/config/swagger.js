@@ -257,6 +257,19 @@ export const swaggerSpec = {
         responses: { 200: { description: 'Cancelled' } },
       },
     },
+    '/bids/my/active': {
+      get: {
+        tags: ['Bidding & Proxy Bids'],
+        summary: 'Get active auctions where the authenticated buyer has placed bids',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: {
+            description: 'List of active auctions with buyer leading/outbid status',
+          },
+          401: { description: 'Unauthorized' },
+        },
+      },
+    },
     '/listings/{id}/bids': {
       post: {
         tags: ['Bidding & Proxy Bids'],

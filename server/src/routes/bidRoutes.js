@@ -2,6 +2,7 @@ import express from 'express';
 import {
   disableAutoBid,
   getBidHistory,
+  getMyActiveBids,
   getMyAutoBid,
   placeBid,
   setAutoBid,
@@ -13,6 +14,8 @@ import { autoBidSchema, placeBidSchema } from '../validators/bidValidators.js';
 
 export const bidRouter = express.Router();
 
+bidRouter.get('/bids/my/active', requireAuth, getMyActiveBids);
+bidRouter.get('/bids/my', requireAuth, getMyActiveBids);
 bidRouter.get('/listings/:id/bids', getBidHistory);
 bidRouter.post(
   '/listings/:id/bids',
