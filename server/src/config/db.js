@@ -1,17 +1,21 @@
 import mongoose from 'mongoose';
 import { env } from './env.js';
+import { seedDemoData } from './seedData.js';
 
 let isReplicaSet = false;
+let memoryServerInstance = null;
 
 /**
  * Connect to MongoDB and detect replica set support.
+ * In development, if connecting to localhost fails (e.g. ECONNREFUSED), automatically launches
+ * a local in-memory MongoDB replica set with transactions enabled and seeds demo data!
  * @param {string} [uri]
  * @returns {Promise<typeof mongoose>}
  */
 export async function connectDB(uri = env.MONGODB_URI) {
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 2000,
     });
 
     console.log(`✅ Connected to MongoDB: ${conn.connection.host}/${conn.connection.name}`);
@@ -31,13 +35,44 @@ export async function connectDB(uri = env.MONGODB_URI) {
       console.log('✅ MongoDB Replica Set detected: Multi-document transactions enabled.');
     } else {
       console.warn(
-        '⚠️ MongoDB is running in STANDALONE mode without a replica set. Multi-document transactions will fail safely if requested. To enable transactions locally, start mongod with --replSet rs0 and run rs.initiate().'
+        '⚠️ MongoDB is running in STANDALONE mode without a replica set. To enable multi-document transactions locally, start mongod with --replSet rs0 and run rs.initiate().'
       );
+    }
+
+    if (env.NODE_ENV === 'development') {
+      await seedDemoData();
     }
 
     return conn;
   } catch (err) {
-    console.error('❌ Failed to connect to MongoDB:', err);
+    // If local development and connection refused, auto-start in-memory replica set
+    if (env.NODE_ENV === 'development' && (err.name === 'MongooseServerSelectionError' || err.message.includes('ECONNREFUSED'))) {
+      console.log('💡 No active local MongoDB daemon found on port 27017.');
+      console.log('🚀 Automatically starting embedded in-memory MongoDB Replica Set for development...');
+      try {
+        const { MongoMemoryReplSet } = await import('mongodb-memory-server');
+        memoryServerInstance = await MongoMemoryReplSet.create({
+          replSet: { count: 1, name: 'rs0' },
+        });
+
+        const memUri = memoryServerInstance.getUri();
+        const conn = await mongoose.connect(memUri);
+        isReplicaSet = true;
+
+        console.log(`✨ Local in-memory MongoDB Replica Set active at: ${memUri}`);
+        console.log('✅ Multi-document transactions fully enabled.');
+
+        // Seed initial campus items for exploration
+        await seedDemoData();
+
+        return conn;
+      } catch (memErr) {
+        console.error('Failed to start in-memory MongoDB:', memErr.message);
+        throw err;
+      }
+    }
+
+    console.error('❌ Failed to connect to MongoDB:', err.message);
     throw err;
   }
 }
@@ -55,6 +90,9 @@ export function isReplicaSetSupported() {
  */
 export async function disconnectDB() {
   await mongoose.disconnect();
+  if (memoryServerInstance) {
+    await memoryServerInstance.stop();
+  }
 }
 
 /**

@@ -9,6 +9,9 @@ beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
   await mongoose.connect(uri);
+  await AutoBid.init();
+  await User.init();
+  await Listing.init();
 });
 
 afterAll(async () => {
