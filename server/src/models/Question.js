@@ -36,6 +36,20 @@ const questionSchema = new mongoose.Schema(
       default: 'OPEN',
       index: true,
     },
+    isAutoAnswered: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    matchedFromQuestionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Question',
+      default: null,
+    },
+    autoAnswerConfidence: {
+      type: Number,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -65,6 +65,33 @@ describe('Community Features & AI Assistant APIs', () => {
     expect(res.body.data.answerText).toContain('medium frame');
   });
 
+  it('automatically detects duplicate question and reuses existing seller answer', async () => {
+    const res = await request(app)
+      .post(`/api/v1/listings/${listingId}/questions`)
+      .set('Authorization', `Bearer ${buyerToken}`)
+      .send({ questionText: 'Is the frame size medium?' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe('ANSWERED');
+    expect(res.body.data.isAutoAnswered).toBe(true);
+    expect(res.body.data.answerText).toBe('It is a medium frame suitable for heights 5ft 4in to 5ft 10in.');
+    expect(res.body.data.matchedFromQuestionId).toBe(questionId);
+    expect(res.body.meta.autoAnswered).toBe(true);
+  });
+
+  it('keeps novel unanswered questions OPEN and routes them to the seller', async () => {
+    const res = await request(app)
+      .post(`/api/v1/listings/${listingId}/questions`)
+      .set('Authorization', `Bearer ${buyerToken}`)
+      .send({ questionText: 'Are the disc brakes hydraulic or mechanical?' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe('OPEN');
+    expect(res.body.data.isAutoAnswered).toBe(false);
+    expect(res.body.data.answerText).toBeNull();
+    expect(res.body.meta.autoAnswered).toBe(false);
+  });
+
   it('toggles listing on the user watchlist', async () => {
     // 1. Add to watchlist
     const addRes = await request(app)

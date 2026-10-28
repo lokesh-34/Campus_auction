@@ -14,6 +14,7 @@ import {
   User,
   Star,
   Award,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees, rupeesToPaise } from '../utils/formatCurrency.js';
@@ -51,6 +52,7 @@ export function AuctionDetails() {
   const [questions, setQuestions] = useState([]);
   const [newQuestionText, setNewQuestionText] = useState('');
   const [questionLoading, setQuestionLoading] = useState(false);
+  const [questionFeedback, setQuestionFeedback] = useState(null);
   const [sellerAnswerText, setSellerAnswerText] = useState({});
 
   // Countdown timer state
@@ -279,10 +281,22 @@ export function AuctionDetails() {
     e.preventDefault();
     if (!newQuestionText.trim()) return;
     setQuestionLoading(true);
+    setQuestionFeedback(null);
     try {
       const q = await api.askQuestion(id, newQuestionText.trim());
       setQuestions((prev) => [q, ...prev]);
       setNewQuestionText('');
+      if (q.isAutoAnswered) {
+        setQuestionFeedback({
+          type: 'AUTO_ANSWER',
+          message: '⚡ Instant Answer Found! The seller already answered this question previously on this auction.',
+        });
+      } else {
+        setQuestionFeedback({
+          type: 'OPEN',
+          message: '✓ Question submitted! The seller has been notified.',
+        });
+      }
     } catch (err) {
       alert(err.message);
     } finally {
@@ -470,6 +484,33 @@ export function AuctionDetails() {
               </span>
             </div>
 
+            {/* Feedback Alert */}
+            {questionFeedback && (
+              <div
+                className={`p-3.5 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in ${
+                  questionFeedback.type === 'AUTO_ANSWER'
+                    ? 'bg-purple-50 border border-purple-200 text-purple-900 shadow-sm'
+                    : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {questionFeedback.type === 'AUTO_ANSWER' ? (
+                    <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                  <span>{questionFeedback.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuestionFeedback(null)}
+                  className="text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Ask input */}
             {isAuthenticated ? (
               <form onSubmit={handleAskQuestion} className="flex gap-2">
@@ -477,7 +518,7 @@ export function AuctionDetails() {
                   type="text"
                   value={newQuestionText}
                   onChange={(e) => setNewQuestionText(e.target.value)}
-                  placeholder="Ask a question about this item..."
+                  placeholder="Ask a question about this item (e.g. brakes, frame size, notes)..."
                   className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <button
@@ -485,7 +526,7 @@ export function AuctionDetails() {
                   disabled={questionLoading || !newQuestionText.trim()}
                   className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm disabled:opacity-50"
                 >
-                  Ask
+                  {questionLoading ? 'Checking...' : 'Ask'}
                 </button>
               </form>
             ) : (
@@ -505,16 +546,48 @@ export function AuctionDetails() {
                 questions.map((q) => (
                   <div key={q._id} className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-slate-800">Q: {q.questionText}</p>
+                      <div>
+                        <p className="font-bold text-slate-800">Q: {q.questionText}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Asked by {q.authorId?.displayName || 'Fellow Student'}
+                        </p>
+                      </div>
                       <span className="text-[10px] text-slate-400 whitespace-nowrap">
                         {new Date(q.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 
                     {q.answerText ? (
-                      <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-emerald-900 mt-2">
-                        <p className="font-semibold text-[11px] text-emerald-800 mb-0.5">Seller Response:</p>
-                        <p className="text-xs">{q.answerText}</p>
+                      <div
+                        className={`p-3.5 rounded-xl text-xs mt-2 space-y-1.5 ${
+                          q.isAutoAnswered
+                            ? 'bg-purple-50/90 border border-purple-200/90 text-purple-950'
+                            : 'bg-emerald-50/70 border border-emerald-100 text-emerald-900'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                            {q.isAutoAnswered ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 font-extrabold text-[10px] uppercase tracking-wide">
+                                <Sparkles className="w-3 h-3 text-purple-600" />
+                                Answered previously by the seller
+                              </span>
+                            ) : (
+                              <span className="text-emerald-800 font-bold">Seller Response:</span>
+                            )}
+                          </div>
+                          {q.isAutoAnswered && (
+                            <span className="text-[10px] text-purple-600/80 font-semibold">
+                              Instant Auto-Match
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs leading-relaxed font-medium">{q.answerText}</p>
+                        {q.isAutoAnswered && (
+                          <p className="text-[10px] text-purple-500 italic pt-0.5">
+                            * Verbatim seller answer automatically surfaced from a prior question on this auction.
+                          </p>
+                        )}
                       </div>
                     ) : isSeller ? (
                       <div className="flex gap-2 pt-1">

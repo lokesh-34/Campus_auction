@@ -1,5 +1,6 @@
 import { Listing, Notification, Question, SavedSearch, User } from '../models/index.js';
 import { createNotification } from '../services/notificationService.js';
+import { findDuplicateOrAnsweredMatch } from '../services/questionMatchingService.js';
 
 // --- Questions & Answers ---
 export async function askQuestion(req, res, next) {
@@ -17,12 +18,47 @@ export async function askQuestion(req, res, next) {
       });
     }
 
+    // 1. Smart Duplicate / Prior Answer Detection for this auction
+    const match = await findDuplicateOrAnsweredMatch(listingId, questionText);
+
+    if (match) {
+      // High-confidence match: Reuse seller's original answer immediately
+      const question = await Question.create({
+        listingId,
+        authorId: author._id,
+        questionText,
+        answerText: match.answerText, // Verbatim original seller answer
+        answeredAt: new Date(),
+        status: 'ANSWERED',
+        isAutoAnswered: true,
+        matchedFromQuestionId: match.matchedQuestionId,
+        autoAnswerConfidence: match.confidence,
+      });
+
+      await question.populate('authorId', 'displayName');
+
+      return res.status(201).json({
+        success: true,
+        data: question,
+        meta: {
+          autoAnswered: true,
+          reusedFrom: match.matchedQuestionId,
+          confidence: match.confidence,
+          message: 'Answered previously by the seller.',
+        },
+      });
+    }
+
+    // 2. No reliable match: Save OPEN question and notify seller
     const question = await Question.create({
       listingId,
       authorId: author._id,
       questionText,
       status: 'OPEN',
+      isAutoAnswered: false,
     });
+
+    await question.populate('authorId', 'displayName');
 
     // Notify seller
     createNotification({
@@ -36,6 +72,9 @@ export async function askQuestion(req, res, next) {
     res.status(201).json({
       success: true,
       data: question,
+      meta: {
+        autoAnswered: false,
+      },
     });
   } catch (err) {
     next(err);
