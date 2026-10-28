@@ -15,7 +15,7 @@ let memoryServerInstance = null;
 export async function connectDB(uri = env.MONGODB_URI) {
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 2000,
+      serverSelectionTimeoutMS: 10000,
     });
 
     console.log(`✅ Connected to MongoDB: ${conn.connection.host}/${conn.connection.name}`);
