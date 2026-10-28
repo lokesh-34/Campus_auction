@@ -113,6 +113,30 @@ export async function answerQuestion(req, res, next) {
     question.status = 'ANSWERED';
     await question.save();
 
+    // Check if any other OPEN questions on this listing can be auto-answered now
+    try {
+      const pendingOpen = await Question.find({
+        listingId: question.listingId._id,
+        status: 'OPEN',
+        _id: { $ne: question._id },
+      });
+
+      for (const openQ of pendingOpen) {
+        const match = await findDuplicateOrAnsweredMatch(question.listingId._id, openQ.questionText);
+        if (match && match.answerText) {
+          openQ.answerText = match.answerText;
+          openQ.answeredAt = new Date();
+          openQ.status = 'ANSWERED';
+          openQ.isAutoAnswered = true;
+          openQ.matchedFromQuestionId = match.matchedQuestionId;
+          openQ.autoAnswerConfidence = match.confidence;
+          await openQ.save();
+        }
+      }
+    } catch (e) {
+      console.warn('Auto-resolving pending questions error:', e.message);
+    }
+
     // Notify question author
     createNotification({
       recipientId: question.authorId.toString(),
@@ -134,9 +158,37 @@ export async function answerQuestion(req, res, next) {
 export async function getListingQuestions(req, res, next) {
   try {
     const { id: listingId } = req.params;
-    const questions = await Question.find({ listingId, status: { $ne: 'REMOVED' } })
+    let questions = await Question.find({ listingId, status: { $ne: 'REMOVED' } })
       .populate('authorId', 'displayName')
       .sort({ createdAt: -1 });
+
+    // Self-healing: Check if any OPEN questions can be auto-resolved from an existing answered question
+    const hasAnswered = questions.some((q) => q.status === 'ANSWERED' && q.answerText);
+    const hasOpen = questions.some((q) => q.status === 'OPEN');
+
+    if (hasAnswered && hasOpen) {
+      let updatedAny = false;
+      for (const q of questions) {
+        if (q.status === 'OPEN') {
+          const match = await findDuplicateOrAnsweredMatch(listingId, q.questionText);
+          if (match && match.answerText) {
+            q.answerText = match.answerText;
+            q.answeredAt = new Date();
+            q.status = 'ANSWERED';
+            q.isAutoAnswered = true;
+            q.matchedFromQuestionId = match.matchedQuestionId;
+            q.autoAnswerConfidence = match.confidence;
+            await q.save();
+            updatedAny = true;
+          }
+        }
+      }
+      if (updatedAny) {
+        questions = await Question.find({ listingId, status: { $ne: 'REMOVED' } })
+          .populate('authorId', 'displayName')
+          .sort({ createdAt: -1 });
+      }
+    }
 
     res.json({
       success: true,

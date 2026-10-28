@@ -1,51 +1,157 @@
 import { Question } from '../models/Question.js';
 import { env } from '../config/env.js';
 
-/**
- * Clean text and tokenize into meaningful lowercase words (filtering common stop words).
- * @param {string} text
- * @returns {Set<string>}
- */
-function extractKeywords(text) {
-  const stopWords = new Set([
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'it', 'this', 'that',
-    'in', 'on', 'at', 'for', 'to', 'of', 'and', 'or', 'do', 'does',
-    'did', 'can', 'could', 'will', 'would', 'have', 'has', 'had', 'please'
-  ]);
+const TOPIC_SYNONYMS = {
+  SIZE: [
+    'size', 'sizes', 'dimension', 'dimensions', 'measurement', 'measurements', 'height',
+    'width', 'length', 'depth', 'thickness', 'scale', 'cm', 'inch', 'inches', 'sqft',
+    'meter', 'big', 'small', 'tall', 'wide', 'heavy', 'weight', 'kg', 'grams', 'mm'
+  ],
+  CONDITION: [
+    'condition', 'working', 'works', 'flaw', 'flaws', 'scratch', 'scratches', 'dent',
+    'dents', 'damage', 'damaged', 'defect', 'defects', 'tear', 'wear', 'functional',
+    'broken', 'fine', 'ok'
+  ],
+  BATTERY: [
+    'battery', 'charge', 'charger', 'charging', 'adapter', 'backup', 'health',
+    'mah', 'cable', 'cord', 'wire', 'plug'
+  ],
+  AGE: [
+    'age', 'old', 'used', 'usage', 'bought', 'purchase', 'purchased', 'year',
+    'years', 'month', 'months', 'since', 'dated', 'lifetime'
+  ],
+  WARRANTY: [
+    'warranty', 'guarantee', 'bill', 'invoice', 'receipt', 'box', 'packaging', 'package'
+  ],
+  PRICE: [
+    'price', 'negotiable', 'negotiate', 'discount', 'cheap', 'cheaper', 'final',
+    'lowest', 'least', 'bargain', 'reduce', 'reduction'
+  ],
+  COLOR: [
+    'color', 'colour', 'shade', 'paint', 'black', 'white', 'blue', 'red', 'green', 'silver', 'grey', 'gray'
+  ],
+  AUTHENTIC: [
+    'original', 'genuine', 'fake', 'copy', 'real', 'authentic', 'brand'
+  ],
+  ACCESSORIES: [
+    'accessories', 'accessory', 'included', 'includes', 'attachment', 'attachments', 'extra', 'extras', 'freebies', 'case', 'cover'
+  ],
+};
 
-  const words = text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !stopWords.has(w));
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'am', 'was', 'were', 'be', 'been', 'being',
+  'do', 'does', 'did', 'have', 'has', 'had', 'can', 'could', 'will', 'would',
+  'shall', 'should', 'may', 'might', 'must', 'it', 'its', 'this', 'that', 'these',
+  'those', 'in', 'on', 'at', 'to', 'for', 'of', 'from', 'by', 'with', 'about',
+  'and', 'or', 'but', 'if', 'what', 'whats', 'which', 'where', 'when', 'who',
+  'whom', 'whose', 'why', 'how', 'please', 'pls', 'plz', 'tell', 'me', 'know',
+  'want', 'give', 'any', 'there', 'here', 'some', 'much', 'many', 'item', 'product',
+  'like', 'just', 'also'
+]);
 
-  return new Set(words);
+function stem(word) {
+  if (word.endsWith('es') && word.length > 4) return word.slice(0, -2);
+  if (word.endsWith('s') && !word.endsWith('ss') && word.length > 3) return word.slice(0, -1);
+  if (word.endsWith('ing') && word.length > 5) return word.slice(0, -3);
+  if (word.endsWith('ed') && word.length > 4) return word.slice(0, -2);
+  return word;
+}
+
+function tokenizeAndTag(text) {
+  const clean = text.toLowerCase().replace(/[^\w\s]/g, ' ');
+  const rawWords = clean.split(/\s+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
+  const topics = new Set();
+  const words = new Set();
+
+  for (const raw of rawWords) {
+    const s = stem(raw);
+    let matchedTopic = null;
+    for (const [topic, list] of Object.entries(TOPIC_SYNONYMS)) {
+      if (list.includes(raw) || list.includes(s)) {
+        topics.add(topic);
+        matchedTopic = topic;
+        break;
+      }
+    }
+    if (!matchedTopic) {
+      words.add(s);
+    }
+  }
+
+  return { topics, words, rawWords, cleanText: clean.trim() };
 }
 
 /**
- * Simple keyword overlap similarity score between two texts (0 to 1).
- * @param {string} text1
- * @param {string} text2
- * @returns {number}
+ * Calculates deterministic semantic matching score between a new question and an answered candidate.
+ * @param {string} newQ
+ * @param {string} candidateQ
+ * @returns {{ match: boolean, confidence: number, reasoning: string }}
  */
-function calculateKeywordSimilarity(text1, text2) {
-  const words1 = extractKeywords(text1);
-  const words2 = extractKeywords(text2);
+export function calculateSemanticQuestionMatch(newQ, candidateQ) {
+  const t1 = tokenizeAndTag(newQ);
+  const t2 = tokenizeAndTag(candidateQ);
 
-  if (words1.size === 0 || words2.size === 0) return 0;
-
-  let intersectionCount = 0;
-  for (const w of words1) {
-    if (words2.has(w)) intersectionCount++;
+  if (t1.rawWords.length === 0 || t2.rawWords.length === 0) {
+    return { match: false, confidence: 0, reasoning: 'Empty question tokens' };
   }
 
-  // Sørensen–Dice coefficient
-  return (2 * intersectionCount) / (words1.size + words2.size);
+  // 1. Exact normalized phrase match
+  if (t1.cleanText === t2.cleanText) {
+    return { match: true, confidence: 1.0, reasoning: 'Exact verbatim question match' };
+  }
+
+  // 2. Topic Overlap Analysis
+  let topicOverlapCount = 0;
+  for (const top of t1.topics) {
+    if (t2.topics.has(top)) topicOverlapCount++;
+  }
+
+  // If both questions have explicit topics and they conflict (e.g. COLOR vs SIZE)
+  if (t1.topics.size > 0 && t2.topics.size > 0 && topicOverlapCount === 0) {
+    return { match: false, confidence: 0, reasoning: 'Conflicting question topics' };
+  }
+
+  // If both share the primary topic intent (e.g. SIZE)
+  if (topicOverlapCount > 0) {
+    // If either question is concise (<= 3 content words, e.g. "size ?", "frame size", "whats the size")
+    if (t1.rawWords.length <= 3 || t2.rawWords.length <= 3) {
+      let wordOverlap = 0;
+      for (const w of t1.words) {
+        if (t2.words.has(w)) wordOverlap++;
+      }
+      return {
+        match: true,
+        confidence: wordOverlap > 0 ? 0.96 : 0.90,
+        reasoning: 'Shared topic intent matching seller response',
+      };
+    }
+  }
+
+  // 3. Keyword Containment & Overlap
+  let totalOverlap = topicOverlapCount;
+  for (const w of t1.words) {
+    if (t2.words.has(w)) totalOverlap++;
+  }
+
+  const minTokens = Math.min(t1.rawWords.length, t2.rawWords.length);
+  const containment = minTokens > 0 ? totalOverlap / minTokens : 0;
+  const dice = (2 * totalOverlap) / (t1.rawWords.length + t2.rawWords.length);
+
+  // If most key terms of the shorter question are contained in the candidate question
+  if (containment >= 0.75 && totalOverlap > 0) {
+    return {
+      match: true,
+      confidence: Number(Math.max(containment * 0.9, dice).toFixed(2)),
+      reasoning: 'High keyword and intent containment',
+    };
+  }
+
+  return { match: false, confidence: 0, reasoning: 'Insufficient overlap' };
 }
 
 /**
  * Detects whether a new buyer question on an auction has already been answered by the seller.
- * Uses Google Gemini 1.5 Flash for semantic comparison, with strict safety guardrails.
+ * Uses high-precision deterministic intent matching first, with AI generation when available.
  *
  * @param {string|ObjectId} listingId
  * @param {string} newQuestionText
@@ -57,7 +163,7 @@ export async function findDuplicateOrAnsweredMatch(listingId, newQuestionText) {
   }
 
   const cleanQuestion = newQuestionText.trim();
-  if (cleanQuestion.length < 3) return null;
+  if (cleanQuestion.length < 2) return null;
 
   // 1. Fetch answered questions belonging ONLY to this specific auction (same listingId)
   const answeredQuestions = await Question.find({
@@ -67,16 +173,30 @@ export async function findDuplicateOrAnsweredMatch(listingId, newQuestionText) {
   })
     .select('_id questionText answerText answeredAt')
     .sort({ answeredAt: -1 })
-    .limit(15); // Cost & token optimization: evaluate top relevant candidate entries
+    .limit(20);
 
   if (answeredQuestions.length === 0) {
     return null;
   }
 
-  const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
+  // 2. High-precision local intent & semantic matching
+  for (const q of answeredQuestions) {
+    const score = calculateSemanticQuestionMatch(cleanQuestion, q.questionText);
+    if (score.match && score.confidence >= 0.8) {
+      return {
+        matchedQuestionId: q._id,
+        answerText: q.answerText, // Verbatim original seller answer
+        confidence: score.confidence,
+        reasoning: score.reasoning,
+      };
+    }
+  }
 
-  // 2. Call Gemini 1.5 Flash for semantic duplicate detection
-  if (apiKey) {
+  // 3. Fallback to Gemini / Groq LLM if API key configured and reachable
+  const geminiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
+  const groqKey = env.GROQ_API_KEY;
+
+  if (groqKey) {
     try {
       const candidatesPayload = answeredQuestions.map((q) => ({
         id: q._id.toString(),
@@ -84,34 +204,62 @@ export async function findDuplicateOrAnsweredMatch(listingId, newQuestionText) {
         sellerAnswer: q.answerText,
       }));
 
-      const prompt = `You are an expert Q&A deduplication and matching system for CampusBid, a university auction platform.
-A student is asking a question about an auction listing.
-
-New student question:
-"${cleanQuestion.replace(/"/g, '\\"')}"
-
-Here are previous answered questions provided by the seller for this EXACT auction:
+      const prompt = `Student asked: "${cleanQuestion.replace(/"/g, '\\"')}".
+Does any of these seller answers directly resolve it?
 ${JSON.stringify(candidatesPayload, null, 2)}
+Respond with JSON only: {"hasMatch": boolean, "matchedQuestionId": string|null, "confidence": number, "reasoning": string}`;
 
-TASK:
-Determine if any of the seller's previous answers directly, factually, and completely resolve the student's new question.
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          max_tokens: 200,
+          temperature: 0.1,
+        }),
+      });
 
-STRICT SAFETY RULES:
-1. ONLY match if the seller's existing answer directly answers the new question with high certainty.
-2. If the new question asks for details not covered in the seller's previous response, or if the match is ambiguous or uncertain, you MUST return hasMatch: false.
-3. NEVER invent or hallucinate answers. You can only identify if an existing seller answer resolves it.
-4. Confidence must be a float between 0.0 and 1.0. Only set confidence >= 0.85 if the match is unambiguous.
+      const json = await res.json();
+      const content = json.choices?.[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        if (parsed.hasMatch && parsed.matchedQuestionId && parsed.confidence >= 0.8) {
+          const matched = answeredQuestions.find(
+            (q) => q._id.toString() === parsed.matchedQuestionId.toString()
+          );
+          if (matched && matched.answerText) {
+            return {
+              matchedQuestionId: matched._id,
+              answerText: matched.answerText,
+              confidence: parsed.confidence,
+              reasoning: parsed.reasoning || 'AI semantically verified seller match',
+            };
+          }
+        }
+      }
+    } catch {
+      // Ignore network / offline error
+    }
+  } else if (geminiKey) {
+    try {
+      const candidatesPayload = answeredQuestions.map((q) => ({
+        id: q._id.toString(),
+        asked: q.questionText,
+        sellerAnswer: q.answerText,
+      }));
 
-Return ONLY a valid JSON object matching this schema:
-{
-  "hasMatch": boolean,
-  "matchedQuestionId": string or null,
-  "confidence": number,
-  "reasoning": string
-}`;
+      const prompt = `Student question: "${cleanQuestion.replace(/"/g, '\\"')}".
+Previous answered seller questions:
+${JSON.stringify(candidatesPayload, null, 2)}
+Determine if any existing seller answer directly resolves the question. Return JSON only: {"hasMatch": boolean, "matchedQuestionId": string|null, "confidence": number, "reasoning": string}`;
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -128,49 +276,25 @@ Return ONLY a valid JSON object matching this schema:
 
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
       if (rawText) {
-        // Strip markdown fences if present
         const cleanedJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanedJson);
-
-        if (
-          parsed.hasMatch &&
-          parsed.matchedQuestionId &&
-          typeof parsed.confidence === 'number' &&
-          parsed.confidence >= 0.8
-        ) {
-          // Safeguard: Verify that the matched ID strictly exists in our database results for this auction
+        if (parsed.hasMatch && parsed.matchedQuestionId && parsed.confidence >= 0.8) {
           const matched = answeredQuestions.find(
             (q) => q._id.toString() === parsed.matchedQuestionId.toString()
           );
-
           if (matched && matched.answerText) {
             return {
               matchedQuestionId: matched._id,
-              answerText: matched.answerText, // Verbatim original seller answer
+              answerText: matched.answerText,
               confidence: parsed.confidence,
-              reasoning: parsed.reasoning || 'Semantically matched with an existing seller answer.',
+              reasoning: parsed.reasoning || 'Gemini verified seller match',
             };
           }
         }
       }
-    } catch (err) {
-      console.warn('Gemini duplicate question matching fallback:', err.message);
-    }
-  }
-
-  // 3. Fallback: High-confidence keyword / semantic token similarity
-  // Useful for offline tests or when API is unavailable
-  for (const q of answeredQuestions) {
-    const similarity = calculateKeywordSimilarity(cleanQuestion, q.questionText);
-    if (similarity >= 0.75) {
-      return {
-        matchedQuestionId: q._id,
-        answerText: q.answerText, // Verbatim original seller answer
-        confidence: Number(similarity.toFixed(2)),
-        reasoning: 'High keyword similarity with an existing answered question.',
-      };
+    } catch {
+      // Ignore network / offline error
     }
   }
 
