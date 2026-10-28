@@ -20,12 +20,15 @@ import {
   Edit3,
   X,
   XCircle,
+  ZoomIn,
+  Maximize2,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees, rupeesToPaise } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
 import { StudentReputationBadge } from '../components/StudentReputationBadge.jsx';
+import { ImagePreviewModal } from '../components/ImagePreviewModal.jsx';
 
 export function AuctionDetails() {
   const { id } = useParams();
@@ -37,6 +40,8 @@ export function AuctionDetails() {
   const [bidHistory, setBidHistory] = useState([]);
   const [minNextBidPaise, setMinNextBidPaise] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -509,13 +514,29 @@ export function AuctionDetails() {
         <div className="lg:col-span-7 space-y-6">
           {/* Main Photo Card */}
           <div className="glass-panel p-2 rounded-3xl overflow-hidden border border-slate-200/90 shadow-lg">
-            <div className="relative h-[340px] sm:h-[420px] rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center">
+            <div
+              onClick={() => {
+                setPreviewImageIndex(selectedImageIndex);
+                setShowImagePreview(true);
+              }}
+              className="group relative h-[340px] sm:h-[420px] rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center cursor-pointer"
+              title="Click photo to open full-screen preview & zoom"
+            >
               <img
                 src={images[selectedImageIndex]?.secureUrl}
                 alt={listing.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
-              <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
+
+              {/* Hover overlay indicator */}
+              <div className="absolute inset-0 bg-slate-950/25 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
+                <span className="px-4 py-2 rounded-full bg-slate-900/90 backdrop-blur-md text-white text-xs font-black shadow-2xl border border-white/20 flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-200">
+                  <ZoomIn className="w-4 h-4 text-brand-400" />
+                  <span>Click to Expand & Inspect</span>
+                </span>
+              </div>
+
+              <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2 z-10 pointer-events-none">
                 <span className="badge-live shadow-md bg-white/95 backdrop-blur-md">
                   {listing.status}
                 </span>
@@ -526,14 +547,38 @@ export function AuctionDetails() {
                   </span>
                 )}
               </div>
-              <div className="absolute top-4 right-4">
+
+              {/* Top Right Watchlist */}
+              <div className="absolute top-4 right-4 z-10">
                 <button
-                  onClick={handleToggleWatchlist}
-                  className={`p-2.5 rounded-full backdrop-blur-md transition shadow-md ${isWatched ? 'bg-rose-500 text-white' : 'bg-slate-900/70 text-white hover:bg-rose-500'
-                    }`}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleWatchlist();
+                  }}
+                  className={`p-2.5 rounded-full backdrop-blur-md transition shadow-md ${
+                    isWatched ? 'bg-rose-500 text-white' : 'bg-slate-900/70 text-white hover:bg-rose-500'
+                  }`}
                   title="Watchlist"
                 >
                   <Heart className="w-4 h-4 fill-current" />
+                </button>
+              </div>
+
+              {/* Bottom Right Floating Preview Badge */}
+              <div className="absolute bottom-4 right-4 z-10">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreviewImageIndex(selectedImageIndex);
+                    setShowImagePreview(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-brand-600 text-white text-xs font-bold backdrop-blur-md transition shadow-md flex items-center gap-1.5"
+                  title="Open Preview"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Preview</span>
                 </button>
               </div>
             </div>
@@ -544,9 +589,18 @@ export function AuctionDetails() {
                 {images.map((img, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setSelectedImageIndex(idx)}
-                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition shrink-0 ${selectedImageIndex === idx ? 'border-brand-600 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'
-                      }`}
+                    onDoubleClick={() => {
+                      setPreviewImageIndex(idx);
+                      setShowImagePreview(true);
+                    }}
+                    title="Click to view, double click to expand preview"
+                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition shrink-0 ${
+                      selectedImageIndex === idx
+                        ? 'border-brand-600 shadow-md ring-2 ring-brand-400/40'
+                        : 'border-transparent opacity-70 hover:opacity-100'
+                    }`}
                   >
                     <img src={img.secureUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                   </button>
@@ -1473,6 +1527,16 @@ export function AuctionDetails() {
           </div>
         </div>
       )}
+
+      {/* High-Definition Fullscreen Image Preview & Inspection Modal */}
+      <ImagePreviewModal
+        isOpen={showImagePreview}
+        images={images}
+        initialIndex={previewImageIndex}
+        title={listing?.title}
+        condition={listing?.condition}
+        onClose={() => setShowImagePreview(false)}
+      />
     </div>
   );
 }

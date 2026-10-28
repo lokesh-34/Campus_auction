@@ -12,9 +12,11 @@ import {
   Sparkles,
   MapPin,
   Phone,
+  ZoomIn,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { rupeesToPaise } from '../utils/formatCurrency.js';
+import { ImagePreviewModal } from '../components/ImagePreviewModal.jsx';
 
 const CATEGORIES = [
   { id: 'CYCLES', label: 'Cycles & Mobility' },
@@ -45,6 +47,7 @@ export function CreateListing() {
   const [closingAt, setClosingAt] = useState(defaultClose);
 
   const [images, setImages] = useState([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -360,12 +363,24 @@ export function CreateListing() {
             {images.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {images.map((img, i) => (
-                  <div key={i} className="relative h-24 rounded-xl overflow-hidden border border-slate-200 group">
-                    <img src={img.secureUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <div
+                    key={i}
+                    onClick={() => setPreviewImageIndex(i)}
+                    className="relative h-24 rounded-xl overflow-hidden border border-slate-200 group cursor-pointer hover:border-brand-500 shadow-sm"
+                    title="Click to preview full photo"
+                  >
+                    <img src={img.secureUrl} alt="Preview" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <ZoomIn className="w-5 h-5 text-white drop-shadow" />
+                    </div>
                     <button
                       type="button"
-                      onClick={() => handleRemoveImage(i)}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-slate-900/80 text-white flex items-center justify-center text-xs hover:bg-rose-600 transition"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveImage(i);
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-slate-900/80 text-white flex items-center justify-center text-xs hover:bg-rose-600 transition z-10"
+                      title="Remove image"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -450,6 +465,18 @@ export function CreateListing() {
           </div>
         </form>
       </div>
+
+      {/* Uploaded Photos Lightbox Preview */}
+      {previewImageIndex !== null && (
+        <ImagePreviewModal
+          isOpen={previewImageIndex !== null}
+          images={images}
+          initialIndex={previewImageIndex}
+          title={title || 'Item Photo Preview'}
+          condition={condition}
+          onClose={() => setPreviewImageIndex(null)}
+        />
+      )}
     </div>
   );
 }

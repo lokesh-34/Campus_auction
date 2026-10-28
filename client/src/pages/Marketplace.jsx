@@ -16,10 +16,12 @@ import {
   Heart,
   ArrowUpDown,
   RefreshCw,
+  ZoomIn,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { ImagePreviewModal } from '../components/ImagePreviewModal.jsx';
 
 const CATEGORIES = [
   { id: '', label: 'All Items', icon: Layers },
@@ -103,6 +105,7 @@ export function Marketplace() {
 
   const [searchInput, setSearchInput] = useState(search);
   const [watchlistIds, setWatchlistIds] = useState([]);
+  const [previewItem, setPreviewItem] = useState(null);
 
   useEffect(() => {
     fetchListings();
@@ -359,6 +362,21 @@ export function Marketplace() {
                       {item.condition}
                     </span>
                   </div>
+
+                  {/* Hover Quick Preview Pill */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPreviewItem(item);
+                    }}
+                    className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-xl bg-slate-900/85 hover:bg-brand-600 text-white text-[11px] font-bold backdrop-blur-md transition opacity-0 group-hover:opacity-100 shadow-md flex items-center gap-1"
+                    title="Click to preview photos"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                    <span>Preview</span>
+                  </button>
                 </div>
 
                 {/* Details */}
@@ -414,6 +432,17 @@ export function Marketplace() {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewItem && (
+        <ImagePreviewModal
+          isOpen={Boolean(previewItem)}
+          images={previewItem.images || []}
+          title={previewItem.title}
+          condition={previewItem.condition}
+          onClose={() => setPreviewItem(null)}
+        />
       )}
     </div>
   );
