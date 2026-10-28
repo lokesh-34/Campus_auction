@@ -17,6 +17,8 @@ import {
   Filter,
   Package,
   X,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -506,7 +508,7 @@ export function NotificationsPage() {
                         <span className="w-2 h-2 rounded-full bg-brand-600" />
                       )}
                     </div>
-                    <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
+                    <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug whitespace-pre-line">
                       {n.message}
                     </p>
                   </div>
@@ -514,6 +516,46 @@ export function NotificationsPage() {
                     {new Date(n.createdAt).toLocaleDateString()}
                   </span>
                 </div>
+
+                {/* Handover & Pickup Details Callout Card */}
+                {(n.type === 'AUCTION_WON' || n.type === 'RESERVATION_ACTIVE') && (n.data?.pickupPoint || n.data?.sellerPhone) && (
+                  <div
+                    className="mt-2.5 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/90 to-teal-50/70 border border-emerald-200 text-xs space-y-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-800 text-[11px] uppercase tracking-wider">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Handover Coordination Details</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                      {n.data?.pickupPoint && (
+                        <div className="flex items-start gap-2 bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                          <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Campus Pickup Point</span>
+                            <span className="font-bold text-slate-800">{n.data.pickupPoint}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {n.data?.sellerPhone && (
+                        <div className="flex items-start gap-2 bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                          <Phone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Seller Phone Number</span>
+                            <a
+                              href={`tel:${n.data.sellerPhone}`}
+                              className="font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                            >
+                              <span>{n.data.sellerPhone}</span>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-4 pt-1">
                   {n.listingId && (

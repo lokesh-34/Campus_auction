@@ -10,6 +10,8 @@ import {
   DollarSign,
   Layers,
   Sparkles,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { rupeesToPaise } from '../utils/formatCurrency.js';
@@ -33,6 +35,8 @@ export function CreateListing() {
   const [description, setDescription] = useState('');
   const [startingPriceRupees, setStartingPriceRupees] = useState('');
   const [minIncrementRupees, setMinIncrementRupees] = useState('50');
+  const [pickupPoint, setPickupPoint] = useState('Campus Central Library / Student Center');
+  const [sellerPhone, setSellerPhone] = useState('');
 
   // Default closing time: 48 hours from now formatted for datetime-local
   const defaultClose = new Date(Date.now() + 48 * 60 * 60 * 1000)
@@ -142,6 +146,8 @@ export function CreateListing() {
         minBidIncrementPaise: incrementPaise,
         closingAt: closeDate.toISOString(),
         images,
+        pickupPoint: pickupPoint.trim(),
+        sellerPhone: sellerPhone.trim(),
       });
 
       navigate(`/auctions/${newListing._id}`);
@@ -296,6 +302,45 @@ export function CreateListing() {
             <p className="text-[11px] text-slate-400 mt-1">
               If any bid arrives in the final 30 seconds, anti-sniping protection automatically extends closing time by 60 seconds.
             </p>
+          </div>
+
+          {/* Campus Handover & Seller Contact Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div>
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-brand-600" />
+                <span>Campus Pickup Point *</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={pickupPoint}
+                onChange={(e) => setPickupPoint(e.target.value)}
+                placeholder="e.g. Hostel 4 Common Room, Central Library"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Designated campus location to meet the buyer for in-person item inspection and handover.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>Seller Contact Phone *</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={sellerPhone}
+                onChange={(e) => setSellerPhone(e.target.value)}
+                placeholder="e.g. +91 98765 43210"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Sent directly to the highest winning bidder after the deadline ends to coordinate handover.
+              </p>
+            </div>
           </div>
 
           {/* Photos Upload Section */}
