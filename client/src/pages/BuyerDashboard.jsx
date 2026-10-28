@@ -8,6 +8,8 @@ import {
   ArrowRight,
   Handshake,
   Heart,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
@@ -115,6 +117,18 @@ export function BuyerDashboard() {
                   <div className="p-3 rounded-xl bg-slate-50 text-[11px] text-slate-600 space-y-1">
                     <p>Pickup Deadline: <span className="font-bold text-slate-800">{new Date(sale.reservationExpiresAt).toLocaleString()}</span></p>
                     <p>Your Status: <span className={buyerConfirmed ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>{buyerConfirmed ? 'Confirmed ✓' : 'Inspection Pending'}</span></p>
+                    {sale.pickupPoint && (
+                      <p className="flex items-center gap-1.5 text-slate-700">
+                        <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                        <span>Pickup Point: <strong className="text-slate-900">{sale.pickupPoint}</strong></span>
+                      </p>
+                    )}
+                    {sale.sellerPhone && (
+                      <p className="flex items-center gap-1.5 text-slate-700">
+                        <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Seller Phone: <a href={`tel:${sale.sellerPhone}`} className="font-bold text-emerald-700 hover:underline">{sale.sellerPhone}</a></span>
+                      </p>
+                    )}
                   </div>
 
                   {!buyerConfirmed ? (
@@ -150,6 +164,22 @@ export function BuyerDashboard() {
                 <div>
                   <p className="font-bold text-slate-900">{sale.listingId?.title}</p>
                   <p className="text-slate-400 text-[11px]">Seller: {sale.sellerId?.displayName}</p>
+                  {(sale.pickupPoint || sale.sellerPhone) && (
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-600 flex-wrap">
+                      {sale.pickupPoint && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-brand-600" />
+                          <span>{sale.pickupPoint}</span>
+                        </span>
+                      )}
+                      {sale.sellerPhone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-emerald-600" />
+                          <a href={`tel:${sale.sellerPhone}`} className="text-emerald-700 font-bold hover:underline">{sale.sellerPhone}</a>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="font-black text-slate-900 text-sm block">{formatPaiseToRupees(sale.finalPricePaise)}</span>

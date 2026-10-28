@@ -67,12 +67,20 @@ export async function approveSale(req, res, next) {
 
     // Notify buyer that item is reserved
     if (sale.winnerId) {
+      const pickupInfo = sale.pickupPoint ? ` Meet at: ${sale.pickupPoint}.` : '';
+      const phoneInfo = sale.sellerPhone ? ` Seller Phone: ${sale.sellerPhone}.` : '';
       createNotification({
         recipientId: sale.winnerId.toString(),
         type: 'RESERVATION_ACTIVE',
         listingId: sale.listingId._id.toString(),
         saleId: sale._id.toString(),
-        message: `Seller approved your winning bid for "${sale.listingId.title}"! The item is now reserved. Please arrange in-person campus handover.`,
+        message: `Seller approved your winning bid for "${sale.listingId.title}"! The item is now reserved.${pickupInfo}${phoneInfo}`,
+        data: {
+          listingId: sale.listingId._id.toString(),
+          saleId: sale._id.toString(),
+          pickupPoint: sale.pickupPoint,
+          sellerPhone: sale.sellerPhone,
+        },
         eventKey: `reserved_${sale._id}`,
       });
     }

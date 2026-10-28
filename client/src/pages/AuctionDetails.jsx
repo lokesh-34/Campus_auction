@@ -15,6 +15,8 @@ import {
   Star,
   Award,
   Sparkles,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees, rupeesToPaise } from '../utils/formatCurrency.js';
@@ -466,6 +468,12 @@ export function AuctionDetails() {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Verified Campus Handover
               </span>
+              {listing.pickupPoint && (
+                <span className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Pickup: {listing.pickupPoint}
+                </span>
+              )}
             </div>
             <p className="text-slate-600 text-xs sm:text-sm leading-relaxed whitespace-pre-line">
               {listing.description}
@@ -716,16 +724,45 @@ export function AuctionDetails() {
 
             {/* Highest Bidder status alert */}
             {isHighestBidder && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3 shadow-sm">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-extrabold text-sm text-emerald-900">
-                    You are the highest bidder!
-                  </p>
-                  <p className="text-emerald-700 mt-0.5 leading-relaxed">
-                    Your bid of {formatPaiseToRupees(listing.currentPricePaise)} is currently the winning bid. The bid button is disabled to prevent you from outbidding yourself.
-                  </p>
+              <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 text-xs space-y-2.5 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-extrabold text-sm text-emerald-950">
+                      {isClosed ? '🎉 Congratulations! You won this auction!' : 'You are currently the highest bidder!'}
+                    </p>
+                    <p className="text-emerald-800 mt-0.5 leading-relaxed">
+                      {isClosed
+                        ? `Your bid of ${formatPaiseToRupees(listing.currentPricePaise)} was the highest bid when the deadline ended. Coordinate your campus handover using the seller pickup point and contact phone number below.`
+                        : `Your bid of ${formatPaiseToRupees(listing.currentPricePaise)} is currently the winning bid. The bid button is disabled to prevent you from outbidding yourself.`}
+                    </p>
+                  </div>
                 </div>
+
+                {isClosed && (listing.pickupPoint || listing.sellerPhone) && (
+                  <div className="pt-2 border-t border-emerald-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {listing.pickupPoint && (
+                      <div className="flex items-center gap-2 p-2 rounded-xl bg-white/80 border border-emerald-200">
+                        <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block">Pickup Point</span>
+                          <span className="font-bold text-slate-800">{listing.pickupPoint}</span>
+                        </div>
+                      </div>
+                    )}
+                    {listing.sellerPhone && (
+                      <div className="flex items-center gap-2 p-2 rounded-xl bg-white/80 border border-emerald-200">
+                        <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block">Seller Phone</span>
+                          <a href={`tel:${listing.sellerPhone}`} className="font-bold text-emerald-700 hover:underline">
+                            {listing.sellerPhone}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -14,7 +14,18 @@ export async function createListing(req, res, next) {
       minBidIncrementPaise,
       closingAt,
       images,
+      pickupPoint,
+      sellerPhone,
     } = req.body;
+
+    const resolvedPickupPoint =
+      pickupPoint?.trim() ||
+      seller.pickupPoint?.trim() ||
+      'Campus Central Library / Student Activity Center';
+    const resolvedSellerPhone =
+      sellerPhone?.trim() ||
+      seller.phoneNumber?.trim() ||
+      '';
 
     const listing = await Listing.create({
       sellerId: seller._id,
@@ -27,6 +38,8 @@ export async function createListing(req, res, next) {
       currentPricePaise: startingPricePaise,
       closingAt: new Date(closingAt),
       images: images || [],
+      pickupPoint: resolvedPickupPoint,
+      sellerPhone: resolvedSellerPhone,
       bidCount: 0,
       status: 'ACTIVE',
     });

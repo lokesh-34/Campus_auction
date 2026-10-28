@@ -28,6 +28,8 @@ export const createListingSchema = z.object({
     )
     .max(5)
     .default([]),
+  pickupPoint: z.string().trim().max(150).optional(),
+  sellerPhone: z.string().trim().max(30).optional(),
 });
 
 export const updateListingSchema = z.object({

@@ -3,7 +3,7 @@ import request from 'supertest';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { app } from '../src/app.js';
-import { Listing, Sale, User } from '../src/models/index.js';
+import { Listing, Sale, User, Notification } from '../src/models/index.js';
 import { reconcileOverdueAuctions } from '../src/services/closureService.js';
 import { connectDB, disconnectDB } from '../src/config/db.js';
 
@@ -14,7 +14,7 @@ beforeAll(async () => {
   await connectDB(replSet.getUri());
   await Sale.init();
   await Listing.init();
-});
+}, 60000);
 
 afterAll(async () => {
   await disconnectDB();
@@ -41,6 +41,8 @@ describe('Durable Auction Closure & Post-Auction Sale Lifecycle', () => {
         condition: 'GOOD',
         startingPricePaise: 80000, // ₹800
         minBidIncrementPaise: 5000,
+        pickupPoint: 'Hostel 4 Common Room',
+        sellerPhone: '+91 9876543210',
         closingAt: new Date(Date.now() + 60000).toISOString(),
       });
     listingWithBidId = res1.body.data._id;
@@ -84,7 +86,21 @@ describe('Durable Auction Closure & Post-Auction Sale Lifecycle', () => {
     expect(saleWithBid).not.toBeNull();
     expect(saleWithBid.outcome).toBe('PENDING_SELLER_APPROVAL');
     expect(saleWithBid.finalPricePaise).toBe(80000);
+    expect(saleWithBid.pickupPoint).toBe('Hostel 4 Common Room');
+    expect(saleWithBid.sellerPhone).toBe('+91 9876543210');
     saleId = saleWithBid._id;
+
+    // Verify buyer received notification with pickup point and phone number
+    const buyer = await User.findOne({ firebaseUid: 'close_buyer_1' });
+    const wonNotif = await Notification.findOne({
+      recipientId: buyer._id,
+      type: 'AUCTION_WON',
+    });
+    expect(wonNotif).not.toBeNull();
+    expect(wonNotif.message).toContain('Hostel 4 Common Room');
+    expect(wonNotif.message).toContain('+91 9876543210');
+    expect(wonNotif.data.pickupPoint).toBe('Hostel 4 Common Room');
+    expect(wonNotif.data.sellerPhone).toBe('+91 9876543210');
 
     // Verify auction without bid -> UNSOLD
     const saleWithoutBid = await Sale.findOne({ listingId: listingWithoutBidId });

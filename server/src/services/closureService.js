@@ -1,5 +1,5 @@
 import { withTransaction } from '../config/db.js';
-import { Listing, Sale } from '../models/index.js';
+import { Listing, Sale, User } from '../models/index.js';
 import { emitAuctionUpdate } from '../sockets/socketManager.js';
 import { createNotification } from './notificationService.js';
 
@@ -39,6 +39,22 @@ export async function reconcileOverdueAuctions() {
 
         const hasWinner = lockedListing.bidCount > 0 && lockedListing.leadingBidderId;
 
+        let pickupPoint = 'Campus Central Library / Student Activity Center';
+        let sellerPhone = '';
+        let seller = null;
+
+        if (hasWinner) {
+          seller = await User.findById(lockedListing.sellerId).session(session);
+          pickupPoint =
+            lockedListing.pickupPoint?.trim() ||
+            seller?.pickupPoint?.trim() ||
+            'Campus Central Library / Student Activity Center';
+          sellerPhone =
+            lockedListing.sellerPhone?.trim() ||
+            seller?.phoneNumber?.trim() ||
+            'Not provided (Coordinate via CampusBid Chat)';
+        }
+
         // Upsert Sale record to prevent duplicate creations
         const sale = await Sale.findOneAndUpdate(
           { listingId: lockedListing._id },
@@ -49,6 +65,8 @@ export async function reconcileOverdueAuctions() {
               winnerId: hasWinner ? lockedListing.leadingBidderId : null,
               finalPricePaise: hasWinner ? lockedListing.currentPricePaise : 0,
               outcome: hasWinner ? 'PENDING_SELLER_APPROVAL' : 'UNSOLD',
+              pickupPoint: hasWinner ? pickupPoint : '',
+              sellerPhone: hasWinner ? sellerPhone : '',
             },
           },
           { upsert: true, new: true, session }
@@ -60,6 +78,8 @@ export async function reconcileOverdueAuctions() {
           hasWinner: Boolean(hasWinner),
           finalPricePaise: sale.finalPricePaise,
           winnerId: sale.winnerId,
+          pickupPoint: hasWinner ? pickupPoint : undefined,
+          sellerPhone: hasWinner ? sellerPhone : undefined,
         };
 
         if (hasWinner) {
@@ -68,7 +88,15 @@ export async function reconcileOverdueAuctions() {
             type: 'AUCTION_WON',
             listingId: lockedListing._id.toString(),
             saleId: sale._id.toString(),
-            message: `🎉 Congratulations! You placed the winning bid of ₹${lockedListing.currentPricePaise / 100} on "${lockedListing.title}". Awaiting seller approval.`,
+            message: `🎉 Congratulations! You placed the highest winning bid of ₹${lockedListing.currentPricePaise / 100} on "${lockedListing.title}".\n📍 Campus Pickup Point: ${pickupPoint}\n📞 Seller Phone: ${sellerPhone}`,
+            data: {
+              listingId: lockedListing._id.toString(),
+              saleId: sale._id.toString(),
+              finalPricePaise: lockedListing.currentPricePaise,
+              pickupPoint,
+              sellerPhone,
+              sellerName: seller?.displayName || 'Seller',
+            },
             eventKey: `won_${lockedListing._id}_${lockedListing.currentPricePaise}`,
           });
 
@@ -77,7 +105,14 @@ export async function reconcileOverdueAuctions() {
             type: 'SALE_APPROVAL',
             listingId: lockedListing._id.toString(),
             saleId: sale._id.toString(),
-            message: `Auction for "${lockedListing.title}" ended with winning bid of ₹${lockedListing.currentPricePaise / 100}. Please approve or reject to arrange campus handover.`,
+            message: `Auction for "${lockedListing.title}" ended with winning bid of ₹${lockedListing.currentPricePaise / 100}. Handover pickup point: ${pickupPoint}. Please approve or reject to arrange campus handover.`,
+            data: {
+              listingId: lockedListing._id.toString(),
+              saleId: sale._id.toString(),
+              finalPricePaise: lockedListing.currentPricePaise,
+              pickupPoint,
+              sellerPhone,
+            },
             eventKey: `sale_approval_${lockedListing._id}`,
           });
         } else {
