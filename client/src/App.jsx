@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { SocketProvider } from './contexts/SocketContext.jsx';
 import { Navbar } from './components/Navbar.jsx';
@@ -20,73 +21,75 @@ import { NotificationsPage } from './pages/NotificationsPage.jsx';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SocketProvider>
-          <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-['Plus_Jakarta_Sans',sans-serif]">
-            <Navbar />
-            <main className="flex-1">
-              <Routes>
-                {/* Public Browsing */}
-                <Route path="/" element={<Marketplace />} />
-                <Route path="/marketplace" element={<Marketplace />} />
-                <Route path="/auctions/:id" element={<AuctionDetails />} />
-                <Route path="/ai-assistant" element={<AiAssistantPage />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <SocketProvider>
+            <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] transition-colors duration-200">
+              <Navbar />
+              <main className="flex-1">
+                <Routes>
+                  {/* Public Browsing */}
+                  <Route path="/" element={<Marketplace />} />
+                  <Route path="/marketplace" element={<Marketplace />} />
+                  <Route path="/auctions/:id" element={<AuctionDetails />} />
+                  <Route path="/ai-assistant" element={<AiAssistantPage />} />
 
-                {/* Auth */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                  {/* Auth */}
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
-                {/* Protected Seller & Buyer Features */}
-                <Route
-                  path="/create-listing"
-                  element={
-                    <ProtectedRoute>
-                      <CreateListing />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/seller-dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <SellerDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/buyer-dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <BuyerDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/watchlist"
-                  element={
-                    <ProtectedRoute>
-                      <WatchlistPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/notifications"
-                  element={
-                    <ProtectedRoute>
-                      <NotificationsPage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Protected Seller & Buyer Features */}
+                  <Route
+                    path="/create-listing"
+                    element={
+                      <ProtectedRoute>
+                        <CreateListing />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/seller-dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <SellerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/buyer-dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <BuyerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/watchlist"
+                    element={
+                      <ProtectedRoute>
+                        <WatchlistPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/notifications"
+                    element={
+                      <ProtectedRoute>
+                        <NotificationsPage />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Catch-all */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </SocketProvider>
-      </AuthProvider>
-    </BrowserRouter>
+                  {/* Catch-all */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+          </SocketProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

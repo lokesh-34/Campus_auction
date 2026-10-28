@@ -11,16 +11,25 @@ import {
   LogOut,
   LayoutDashboard,
   PackageCheck,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
+import { useTheme } from '../contexts/ThemeContext.jsx';
 import { api } from '../services/api.js';
+import {
+  requestDesktopNotificationPermission,
+  sendTestDesktopNotification,
+  getDesktopNotificationPermission,
+} from '../services/desktopNotifications.js';
 
 export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { mongoUser, isAuthenticated, logout } = useAuth();
   const { isConnected, socket } = useSocket();
+  const { isDark, toggleTheme } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
@@ -60,14 +69,14 @@ export function Navbar() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-brand-900 to-brand-700 bg-clip-text text-transparent">
+              <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-brand-900 to-brand-700 dark:from-white dark:via-brand-200 dark:to-indigo-300 bg-clip-text text-transparent">
                 CampusBid
               </span>
-              <span className={isConnected ? 'badge-live' : 'px-2 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-600 font-semibold'}>
+              <span className={isConnected ? 'badge-live' : 'px-2 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold'}>
                 {isConnected ? 'LIVE' : 'SYNCING'}
               </span>
             </div>
-            <p className="text-[10px] font-medium text-slate-500 tracking-wider uppercase -mt-0.5">
+            <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 tracking-wider uppercase -mt-0.5">
               Campus Auction Hub
             </p>
           </div>
@@ -112,7 +121,22 @@ export function Navbar() {
         </nav>
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            {isDark ? (
+              <Sun className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-600 hover:-rotate-12 transition-transform" />
+            )}
+          </button>
+
           <Link
             to="/create-listing"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 text-white text-sm font-semibold shadow-sm hover:from-brand-700 hover:to-indigo-700 hover:shadow transition-all"
@@ -183,6 +207,19 @@ export function Navbar() {
                       <Bell className="w-4 h-4 text-amber-500" />
                       <span>Notification Centre</span>
                     </Link>
+
+                    <button
+                      onClick={toggleTheme}
+                      className="w-full text-left flex items-center justify-between px-4 py-2.5 text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                        <span>Theme</span>
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {isDark ? 'Dark 🌙' : 'Light ☀️'}
+                      </span>
+                    </button>
 
                     <button
                       onClick={async () => {

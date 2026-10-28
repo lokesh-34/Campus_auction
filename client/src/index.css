@@ -7,11 +7,22 @@
     --brand-primary: #4f46e5;
     --brand-dark: #0f172a;
     --brand-accent: #f59e0b;
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white;
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-200;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  .dark body {
+    background-color: #090d16;
+    color: #f8fafc;
+    @apply selection:bg-indigo-600 selection:text-white;
   }
 }
 
@@ -20,14 +31,33 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(226, 232, 240, 0.85);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(51, 65, 85, 0.65);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
 }
 
 .gradient-hero {
   background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, rgba(244, 63, 94, 0.05) 50%, rgba(255, 255, 255, 0) 100%);
 }
 
+.dark .gradient-hero {
+  background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.22) 0%, rgba(244, 63, 94, 0.08) 50%, rgba(9, 13, 22, 0) 100%);
+}
+
 .badge-live {
   @apply relative inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+.dark .badge-live {
+  background-color: rgba(6, 78, 59, 0.35);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
 }
 
 .badge-live::before {
@@ -37,4 +67,156 @@
 
 .badge-sniping {
   @apply relative inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 animate-pulse;
+}
+
+.dark .badge-sniping {
+  background-color: rgba(120, 53, 15, 0.35);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* Form inputs & controls in dark mode */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark select,
+.dark textarea {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #6366f1;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* Neutral text colors in dark mode */
+.dark .text-slate-900 {
+  color: #f8fafc;
+}
+
+.dark .text-slate-800 {
+  color: #f1f5f9;
+}
+
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-600 {
+  color: #94a3b8;
+}
+
+.dark .text-slate-500 {
+  color: #64748b;
+}
+
+/* Surfaces and cards in dark mode */
+.dark .bg-white {
+  background-color: #0f172a;
+}
+
+.dark .bg-slate-50 {
+  background-color: #090d16;
+}
+
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80 {
+  background-color: rgba(15, 23, 42, 0.6);
+}
+
+.dark .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+.dark .bg-slate-200 {
+  background-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark div.bg-slate-900 {
+  background-color: #1e293b;
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+/* Buttons and active pills in dark mode */
+.dark button.bg-slate-900,
+.dark a.bg-slate-900 {
+  background-color: #4f46e5;
+  color: #ffffff;
+}
+
+.dark button.bg-slate-900:hover,
+.dark a.bg-slate-900:hover {
+  background-color: #4338ca;
+}
+
+/* Accent chips and notification pills in dark mode */
+.dark .bg-brand-50 {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+}
+
+.dark .bg-purple-50,
+.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #e9d5ff;
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.3);
+  color: #6ee7b7;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.3);
+  color: #fcd34d;
+}
+
+.dark .bg-rose-50 {
+  background-color: rgba(159, 18, 57, 0.3);
+  color: #fda4af;
+}
+
+.dark .text-brand-900,
+.dark .text-brand-700 {
+  color: #a5b4fc;
+}
+
+/* Borders in dark mode */
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/90,
+.dark .border-slate-300,
+.dark .border-slate-300\/80 {
+  border-color: rgba(51, 65, 85, 0.65);
+}
+
+/* Hover surfaces in dark mode */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/50:hover {
+  background-color: #1e293b;
+}
+
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-100\/60:hover {
+  background-color: #1e293b;
+}
+
+/* Modal and backdrop in dark mode */
+.dark .bg-slate-900\/60 {
+  background-color: rgba(0, 0, 0, 0.75);
+}
+
+/* Footer in dark mode */
+footer.bg-slate-900,
+.dark footer.bg-slate-900 {
+  background-color: #030712;
+  border-color: #1f2937;
 }
