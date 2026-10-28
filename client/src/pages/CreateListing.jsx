@@ -48,23 +48,34 @@ export function CreateListing() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [imageError, setImageError] = useState('');
 
   const handleImageFileChange = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    
+    setImageError('');
+
     if (images.length + files.length > 5) {
-      return setError('Maximum 5 photos allowed per listing.');
+      setImageError('Maximum 5 photos allowed per listing.');
+      e.target.value = '';
+      return;
     }
 
     setUploadingImage(true);
-    setError('');
 
     try {
       const signParams = await api.getSignParameters();
 
       for (const file of files) {
+        // Validate image format
+        if (!file.type.startsWith('image/')) {
+          setImageError(`File "${file.name}" is not an image. Only image files (JPG, PNG, WebP) are allowed.`);
+          continue;
+        }
+
         if (file.size > 5 * 1024 * 1024) {
-          setError(`File "${file.name}" exceeds the 5MB size limit.`);
+          setImageError(`File "${file.name}" exceeds the 5MB size limit.`);
           continue;
         }
 
@@ -105,19 +116,22 @@ export function CreateListing() {
         }
       }
     } catch (err) {
-      setError(err.message || 'Image upload failed. Please try again.');
+      setImageError(err.message || 'Image upload failed. Please try again.');
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
   const handleRemoveImage = (index) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+    setImageError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setImageError('');
 
     const startingPaise = rupeesToPaise(startingPriceRupees);
     const incrementPaise = rupeesToPaise(minIncrementRupees);
@@ -171,13 +185,6 @@ export function CreateListing() {
             Reach hundreds of students on campus. Transparent bidding with verified campus handover.
           </p>
         </div>
-
-        {error && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
@@ -386,7 +393,43 @@ export function CreateListing() {
                 />
               </label>
             )}
+
+            {/* Image Error Alert - displayed directly after photos upload */}
+            {imageError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{imageError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setImageError('')}
+                  className="text-rose-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-100 transition"
+                  title="Dismiss error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Form Submit Error */}
+          {error && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setError('')}
+                className="text-rose-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-100 transition"
+                title="Dismiss error"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
