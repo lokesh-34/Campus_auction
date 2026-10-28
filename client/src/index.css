@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-primary: #4f46e5;
+    --brand-dark: #0f172a;
+    --brand-accent: #f59e0b;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+.gradient-hero {
+  background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, rgba(244, 63, 94, 0.05) 50%, rgba(255, 255, 255, 0) 100%);
+}
+
+.badge-live {
+  @apply relative inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200;
+}
+
+.badge-live::before {
+  content: '';
+  @apply w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse;
+}
+
+.badge-sniping {
+  @apply relative inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 animate-pulse;
+}
