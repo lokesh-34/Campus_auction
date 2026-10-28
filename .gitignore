@@ -3,17 +3,14 @@ node_modules/
 .pnp/
 .pnp.js
 
-# Environment variables & secrets
+# Environment variables
 .env
 .env.local
 .env.*.local
 *.env
 firebase-service-account*.json
-**/firebase-service-account*.json
 google-key*.json
-**/google-key*.json
 *-key.json
-**/*-key.json
 
 # Build outputs
 dist/
@@ -34,6 +31,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Testing & Coverage
+# Testing
 coverage/
 .nyc_output/
