@@ -18,7 +18,7 @@ export function extractStructuredFilters(query) {
     filters.category = 'TEXTBOOKS';
   } else if (lower.includes('calculator') || lower.includes('casio')) {
     filters.category = 'CALCULATORS';
-  } else if (lower.includes('laptop') || lower.includes('phone') || lower.includes('electronics') || lower.includes('charger')) {
+  } else if (lower.includes('laptop') || lower.includes('phone') || lower.includes('electronics') || lower.includes('charger') || lower.includes('camera')) {
     filters.category = 'ELECTRONICS';
   } else if (lower.includes('lab') || lower.includes('drafter') || lower.includes('coat')) {
     filters.category = 'LAB_EQUIPMENT';
@@ -26,7 +26,7 @@ export function extractStructuredFilters(query) {
     filters.category = 'FURNITURE';
   }
 
-  // Price detection (e.g. "under ₹2,000" or "under 2000" or "below 1500")
+  // Price detection (e.g. "under ₹4,000" or "under 2000" or "below 1500")
   const priceMatch = lower.match(/(?:under|below|less than|max)\s*(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)?)/i);
   if (priceMatch) {
     const rupees = parseInt(priceMatch[1].replace(/,/g, ''), 10);
@@ -44,12 +44,57 @@ export function extractStructuredFilters(query) {
 }
 
 /**
+ * Extracts action intent (e.g. "auto bid it till 5000", "bid 3500") from user query.
+ * @param {string} query
+ */
+export function extractActionIntent(query) {
+  const lower = query.toLowerCase();
+
+  // AutoBid intent detection:
+  // e.g. "auto bid it till 5000", "autobid up to 4500", "auto bid 5000", "autobid till 5000"
+  const autoBidMatch = lower.match(
+    /(?:auto[\s-]?bid|proxy(?:\s+bid)?)\s*(?:it|on it|item)?\s*(?:till|to|up to|at|for)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)?)/i
+  );
+
+  if (autoBidMatch) {
+    const rupees = parseInt(autoBidMatch[1].replace(/,/g, ''), 10);
+    if (!isNaN(rupees) && rupees > 0) {
+      return {
+        actionType: 'AUTO_BID',
+        targetAmountRupees: rupees,
+        targetAmountPaise: rupees * 100,
+      };
+    }
+  }
+
+  // Manual bid intent detection:
+  // e.g. "bid 3500", "place bid 4000", "bid ₹3,800"
+  const manualBidMatch = lower.match(
+    /(?:place\s+bid|bid|offer)\s*(?:it)?\s*(?:of|at|for|till)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)?)/i
+  );
+
+  if (manualBidMatch) {
+    const rupees = parseInt(manualBidMatch[1].replace(/,/g, ''), 10);
+    if (!isNaN(rupees) && rupees > 0) {
+      return {
+        actionType: 'MANUAL_BID',
+        targetAmountRupees: rupees,
+        targetAmountPaise: rupees * 100,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Generate natural language explanation using Gemini or Groq based on real listings.
  * @param {string} userQuery
  * @param {Array} listings
+ * @param {Object|null} suggestedAction
  * @returns {Promise<string>}
  */
-async function generateAiExplanation(userQuery, listings) {
+async function generateAiExplanation(userQuery, listings, suggestedAction = null) {
   const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
 
   if (listings.length === 0) {
@@ -59,18 +104,24 @@ async function generateAiExplanation(userQuery, listings) {
   const listingSummary = listings
     .map(
       (l, idx) =>
-        `${idx + 1}. "${l.title}" (${l.category}, Condition: ${l.condition}) - Current bid: ₹${l.currentPricePaise / 100}, Closing at: ${new Date(l.closingAt).toLocaleTimeString()}`
+        `${idx + 1}. "${l.title}" (${l.category}, Condition: ${l.condition}) - Current bid: ₹${l.currentPricePaise / 100}, Starting: ₹${l.startingPricePaise / 100}, Closing at: ${new Date(l.closingAt).toLocaleTimeString()}`
     )
     .join('\n');
 
+  let actionNote = '';
+  if (suggestedAction) {
+    actionNote = `\nNote: The student also requested to ${suggestedAction.actionType === 'AUTO_BID' ? 'auto-bid' : 'bid'} up to ₹${suggestedAction.proposedAmountRupees} on "${suggestedAction.title}". Confirm that an action proposal card is prepared below for them to review and approve.`;
+  }
+
   if (apiKey) {
     try {
-      const prompt = `You are CampusBid AI, a friendly campus marketplace assistant.
+      const prompt = `You are CampusBid AI, an intelligent, helpful campus marketplace assistant.
 The student asked: "${userQuery}".
 Here are the actual matching active listings in the campus database:
 ${listingSummary}
+${actionNote}
 
-Give a concise, helpful 2-3 sentence recommendation explaining why these items match their search and noting their current auction prices. Do not invent any facts, items, or numbers not listed above.`;
+Give a concise, helpful 2-3 sentence recommendation. Highlight the matching item and its current price. If an action proposal (like auto-bidding) was prepared, mention that they can review and confirm it with one click below. Do not invent any items or numbers not listed above.`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -79,7 +130,7 @@ Give a concise, helpful 2-3 sentence recommendation explaining why these items m
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 200, temperature: 0.2 },
+            generationConfig: { maxOutputTokens: 250, temperature: 0.2 },
           }),
         }
       );
@@ -93,6 +144,10 @@ Give a concise, helpful 2-3 sentence recommendation explaining why these items m
     }
   }
 
+  if (suggestedAction) {
+    return `I found matching active listings for "${userQuery}". I've also prepared an AutoBid proposal of ₹${suggestedAction.proposedAmountRupees} for "${suggestedAction.title}" below for your review.`;
+  }
+
   return `I found ${listings.length} active campus auction(s) matching your request:`;
 }
 
@@ -102,18 +157,82 @@ Give a concise, helpful 2-3 sentence recommendation explaining why these items m
  */
 export async function processAiQuery(userQuery) {
   const filters = extractStructuredFilters(userQuery);
+  const actionIntent = extractActionIntent(userQuery);
 
-  // Search authoritative listings from MongoDB
-  const matchingListings = await Listing.find(filters)
+  // 1. Search authoritative listings from MongoDB with parsed filters
+  let matchingListings = await Listing.find(filters)
     .populate('sellerId', 'displayName stats')
     .sort({ closingAt: 1 })
     .limit(5);
 
-  const explanation = await generateAiExplanation(userQuery, matchingListings);
+  // 2. Fallback: If price filter yielded 0 matches but category exists,
+  // search by category so the user still discovers available campus items
+  if (matchingListings.length === 0 && filters.category) {
+    matchingListings = await Listing.find({
+      category: filters.category,
+      status: { $in: ['ACTIVE', 'EXTENDED'] },
+    })
+      .populate('sellerId', 'displayName stats')
+      .sort({ currentPricePaise: 1 })
+      .limit(5);
+  }
+
+  // 3. Fallback: Keyword search
+  if (matchingListings.length === 0) {
+    const cleanKeyword = userQuery
+      .replace(/under.*$/i, '')
+      .replace(/auto.*$/i, '')
+      .replace(/bid.*$/i, '')
+      .trim();
+
+    if (cleanKeyword.length >= 3) {
+      matchingListings = await Listing.find({
+        $text: { $search: cleanKeyword },
+        status: { $in: ['ACTIVE', 'EXTENDED'] },
+      })
+        .populate('sellerId', 'displayName stats')
+        .limit(5);
+    }
+  }
+
+  // Construct suggestedAction if action intent was detected
+  let suggestedAction = null;
+  if (actionIntent && matchingListings.length > 0) {
+    const targetListing = matchingListings[0];
+    const minRequiredPaise =
+      targetListing.bidCount === 0
+        ? targetListing.startingPricePaise
+        : targetListing.currentPricePaise + targetListing.minBidIncrementPaise;
+
+    const isEligible = actionIntent.targetAmountPaise >= minRequiredPaise;
+
+    suggestedAction = {
+      listingId: targetListing._id,
+      title: targetListing.title,
+      category: targetListing.category,
+      actionType: actionIntent.actionType,
+      currentPricePaise: targetListing.currentPricePaise,
+      currentPriceRupees: targetListing.currentPricePaise / 100,
+      minRequiredPaise,
+      minRequiredRupees: minRequiredPaise / 100,
+      proposedAmountPaise: actionIntent.targetAmountPaise,
+      proposedAmountRupees: actionIntent.targetAmountRupees,
+      isEligible,
+      requiresConfirmation: true,
+      message:
+        actionIntent.actionType === 'AUTO_BID'
+          ? `AutoBid proposal: Automatically defend your lead up to ₹${actionIntent.targetAmountRupees}.`
+          : `Bid proposal: Submit manual bid of ₹${actionIntent.targetAmountRupees}.`,
+    };
+  }
+
+  const explanation = await generateAiExplanation(userQuery, matchingListings, suggestedAction);
 
   return {
     query: userQuery,
     parsedFilters: filters,
+    actionIntent,
+    suggestedAction,
     listings: matchingListings.map((item) => ({
       id: item._id,
       title: item.title,
@@ -165,7 +284,9 @@ export async function proposeBiddingAction(listingId, actionType, proposedAmount
     proposedAmountRupees,
     isEligible,
     warning: isEligible
-      ? 'Please confirm: This action will be submitted to the authoritative bidding engine.'
+      ? actionType === 'AUTO_BID'
+        ? 'Please confirm: This will configure automatic proxy bidding up to your maximum ceiling.'
+        : 'Please confirm: This action will be submitted to the authoritative bidding engine.'
       : `Proposed amount is below the required minimum of ₹${minRequiredPaise / 100}.`,
     requiresConfirmation: true,
   };

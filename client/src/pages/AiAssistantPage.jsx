@@ -9,12 +9,15 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  Zap,
+  Bot,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 const SUGGESTIONS = [
+  'Find me a bicycle under ₹4,000 and auto bid it till 5000',
   'Find me a bicycle under ₹4,000',
   'Show scientific calculators for engineering exams',
   'Find textbook with lecture notes',
@@ -53,14 +56,15 @@ export function AiAssistantPage() {
     }
   };
 
-  const handleProposeBid = async (listing) => {
+  const handleProposeAction = async (listing, actionType = 'MANUAL_BID', customAmount = null) => {
     setProposalError('');
     setProposalSuccess('');
     try {
+      const proposedAmountRupees = customAmount || (listing.minNextBidPaise / 100);
       const prop = await api.proposeAiBid({
         listingId: listing.id,
-        actionType: 'MANUAL_BID',
-        proposedAmountRupees: listing.minNextBidPaise / 100,
+        actionType,
+        proposedAmountRupees,
       });
       setProposalModal(prop);
     } catch (err) {
@@ -74,11 +78,16 @@ export function AiAssistantPage() {
     setProposalError('');
 
     try {
-      await api.placeBid(proposalModal.listingId, proposalModal.proposedAmountPaise);
-      setProposalSuccess(`🎉 Bid of ₹${proposalModal.proposedAmountRupees} officially placed on "${proposalModal.title}"!`);
+      if (proposalModal.actionType === 'AUTO_BID') {
+        await api.setAutoBid(proposalModal.listingId, proposalModal.proposedAmountPaise);
+        setProposalSuccess(`⚡ Proxy AutoBid up to ₹${proposalModal.proposedAmountRupees} officially activated on "${proposalModal.title}"!`);
+      } else {
+        await api.placeBid(proposalModal.listingId, proposalModal.proposedAmountPaise);
+        setProposalSuccess(`🎉 Bid of ₹${proposalModal.proposedAmountRupees} officially placed on "${proposalModal.title}"!`);
+      }
       setProposalModal(null);
     } catch (err) {
-      setProposalError(err.message || 'Failed to submit bid.');
+      setProposalError(err.message || 'Failed to submit action.');
     } finally {
       setProposalLoading(false);
     }
@@ -177,6 +186,67 @@ export function AiAssistantPage() {
             </p>
           </div>
 
+          {/* AI Action Proposal Card if action intent detected */}
+          {response.suggestedAction && (
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white shadow-xl border border-purple-400/30 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-200 text-xs font-bold uppercase tracking-wider">
+                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  <span>Action Proposal Ready</span>
+                </div>
+                <span className="text-xs text-purple-300/80 font-medium">Confirmation-Gated</span>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  {response.suggestedAction.actionType === 'AUTO_BID'
+                    ? `AutoBid Proposal: Up to ₹${response.suggestedAction.proposedAmountRupees}`
+                    : `Bid Proposal: ₹${response.suggestedAction.proposedAmountRupees}`}
+                </h3>
+                <p className="text-xs text-purple-200 mt-1">
+                  Target Listing: <strong className="text-white">{response.suggestedAction.title}</strong>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 text-xs">
+                <div>
+                  <span className="text-[10px] text-purple-200/70 block uppercase font-bold">Current Price</span>
+                  <span className="text-sm font-extrabold text-white">₹{response.suggestedAction.currentPriceRupees}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-purple-200/70 block uppercase font-bold">Next Minimum Bid</span>
+                  <span className="text-sm font-extrabold text-white">₹{response.suggestedAction.minRequiredRupees}</span>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="text-[10px] text-amber-300 block uppercase font-bold">
+                    {response.suggestedAction.actionType === 'AUTO_BID' ? 'AutoBid Ceiling' : 'Proposed Bid'}
+                  </span>
+                  <span className="text-sm font-black text-amber-300">₹{response.suggestedAction.proposedAmountRupees}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2 text-[11px] text-purple-200/80">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Requires explicit confirmation to ensure account safety</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setProposalModal(response.suggestedAction)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 fill-slate-950" />
+                  <span>
+                    {response.suggestedAction.actionType === 'AUTO_BID'
+                      ? `Review & Confirm AutoBid (₹${response.suggestedAction.proposedAmountRupees})`
+                      : `Review & Confirm Bid (₹${response.suggestedAction.proposedAmountRupees})`}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Matched Listings */}
           {response.listings?.length > 0 && (
             <div className="space-y-3">
@@ -207,21 +277,32 @@ export function AiAssistantPage() {
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
                         <Link
                           to={`/auctions/${item.id}`}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold"
                         >
                           Details
                         </Link>
 
                         {isAuthenticated && (
-                          <button
-                            onClick={() => handleProposeBid(item)}
-                            className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm"
-                          >
-                            Propose Bid
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleProposeAction(item, 'MANUAL_BID')}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm"
+                            >
+                              Bid
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleProposeAction(item, 'AUTO_BID', (item.minNextBidPaise / 100) + 500)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-sm flex items-center gap-1"
+                            >
+                              <Zap className="w-3 h-3 fill-slate-950" />
+                              <span>AutoBid</span>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -233,18 +314,31 @@ export function AiAssistantPage() {
         </div>
       )}
 
-      {/* Confirmation Gated Bid Modal */}
+      {/* Confirmation Gated Action Modal */}
       {proposalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="max-w-md w-full glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl border border-purple-200 space-y-5 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                  <Gavel className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  proposalModal.actionType === 'AUTO_BID'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-purple-100 text-purple-700'
+                }`}>
+                  {proposalModal.actionType === 'AUTO_BID' ? (
+                    <Zap className="w-4 h-4 fill-amber-700" />
+                  ) : (
+                    <Gavel className="w-4 h-4" />
+                  )}
                 </div>
-                <h3 className="font-bold text-slate-900 text-base">Explicit User Confirmation Required</h3>
+                <h3 className="font-bold text-slate-900 text-base">
+                  {proposalModal.actionType === 'AUTO_BID'
+                    ? 'Confirm Proxy AutoBid Ceiling'
+                    : 'Confirm Manual Auction Bid'}
+                </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setProposalModal(null)}
                 className="text-slate-400 hover:text-slate-600 text-xs font-bold"
               >
@@ -258,7 +352,9 @@ export function AiAssistantPage() {
                 <span>AI Safety Guardrail</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                The AI assistant <strong>cannot</strong> place bids automatically without your explicit consent. Please review and confirm the proposed bid amount below.
+                {proposalModal.actionType === 'AUTO_BID'
+                  ? 'Our bidding engine will automatically place incremental bids on your behalf whenever someone else bids, up to your maximum ceiling. We will never exceed this ceiling.'
+                  : 'The AI assistant cannot place bids without your explicit consent. A single authoritative bid will be submitted directly to MongoDB.'}
               </p>
             </div>
 
@@ -279,8 +375,10 @@ export function AiAssistantPage() {
                 <span className="font-bold">₹{proposalModal.minRequiredRupees}</span>
               </div>
               <div className="flex justify-between text-purple-700 font-extrabold text-sm pt-2 border-t border-slate-200">
-                <span>Your Proposed Bid:</span>
-                <span>₹{proposalModal.proposedAmountRupees}</span>
+                <span>
+                  {proposalModal.actionType === 'AUTO_BID' ? 'AutoBid Maximum Ceiling:' : 'Your Proposed Bid:'}
+                </span>
+                <span className="text-base text-purple-800">₹{proposalModal.proposedAmountRupees}</span>
               </div>
             </div>
 
@@ -296,9 +394,23 @@ export function AiAssistantPage() {
                 type="button"
                 disabled={proposalLoading || !proposalModal.isEligible}
                 onClick={handleConfirmAction}
-                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md disabled:opacity-50"
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                  proposalModal.actionType === 'AUTO_BID'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
               >
-                {proposalLoading ? 'Submitting...' : 'Confirm & Place Bid'}
+                {proposalModal.actionType === 'AUTO_BID' ? (
+                  <>
+                    <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                    <span>{proposalLoading ? 'Activating...' : 'Confirm & Activate AutoBid'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Gavel className="w-3.5 h-3.5" />
+                    <span>{proposalLoading ? 'Submitting...' : 'Confirm & Place Bid'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
