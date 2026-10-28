@@ -25,8 +25,11 @@
   - [Monetary Precision](#3-zero-floating-point-monetary-precision)
   - [Dual-Confirmation Handover](#4-dual-confirmation-post-auction-handover)
   - [AI Campus Assistant](#5-ai-campus-shopping-assistant)
-  - [Community Q&A with Smart Deduplication](#6-community-qa-with-duplicate-detection)
-  - [Watchlists & Real-Time Alerts](#7-watchlists-saved-searches--notifications)
+  - [Community Q&A with Smart Deduplication](#6-community-qa-with-gemini-duplicate-detection)
+  - [Seller Dashboard & Revenue Analytics](#7-informative-seller-dashboard--revenue-analytics)
+  - [Desktop OS Notifications & Sound Chimes](#8-desktop-os-notifications--web-audio-chimes)
+  - [Categorized Notification Centre](#9-categorized-notification-centre--in-line-reply)
+  - [Seller Self-Exclusion & Leading Bidder Safeguards](#10-seller-self-exclusion--leading-bidder-protections)
 - [Tech Stack](#-tech-stack)
 - [Monorepo Directory Structure](#-monorepo-directory-structure)
 - [Getting Started](#-getting-started)
@@ -52,7 +55,11 @@
 - 🔒 **ACID Transaction Safety**: All bidding sequences, price updates, and auction extensions execute inside MongoDB multi-document transactions with atomic rollback on contention.
 - 🤝 **Dual-Confirmation Physical Handover**: Protects student buyers and sellers with a multi-step post-auction resolution lifecycle (Approved $\rightarrow$ Reserved $\rightarrow$ Dual In-Person Confirmation $\rightarrow$ Completed).
 - 🧠 **Grounded Gemini AI Assistant**: Natural language search and bid advisory integrated with Google Gemini (`gemini-1.5-flash`), answering student queries based strictly on active campus listings.
-- 💬 **Intelligent Community Q&A**: Listing-level public inquiries featuring automated question deduplication that reuses existing seller answers.
+- 💬 **Intelligent Community Q&A**: Listing-level public inquiries featuring automated question deduplication powered by Gemini 1.5 Flash that reuses existing seller answers instantly.
+- 📊 **Informative Seller Dashboard**: Real-time revenue analytics tracking realized income, pending inflow, sell-through rate, auction value surge, and category revenue distribution.
+- 🔔 **Desktop OS Notifications & Synthetic Chimes**: Native HTML5 OS desktop alerts and two-tone Web Audio API synthesized chimes (587.33Hz + 880Hz) with zero MP3 dependencies.
+- 📬 **Categorized Activity Feed with Direct Reply**: Segmentation into *All*, *Selling Related*, and *Buying Related* with inline answering for questions directly within notification cards.
+- 🚫 **Seller Self-Exclusion & Leading Bidder Safeguards**: Sellers are prevented from viewing or bidding on their own products in search and marketplace, and leading bidders cannot accidentally outbid themselves.
 - 📖 **Interactive Swagger UI**: Full OpenAPI 3.0 specification with built-in mock token authentication for effortless endpoint experimentation.
 
 ---
@@ -134,14 +141,41 @@ flowchart TD
 - Accepts natural language queries like *"Find me a mountain cycle under ₹3,500"* or *"Is there any scientific calculator in like-new condition?"*.
 - Cross-references real MongoDB catalog items to synthesize structured recommendations with actionable bid proposal modals.
 
-### 6. Community Q&A with Duplicate Detection
-- Prospective bidders can ask questions about item condition, accessories, or pickup spots.
-- The system checks for semantic or exact duplicate questions on the listing: if already answered by the seller, the existing answer is delivered instantly without notifying the seller again.
+### 6. Community Q&A with Gemini Duplicate Detection
+- Prospective bidders can ask questions about item condition, accessories, pickup spots, or semester notes.
+- **Semantic Question Matching**: Powered by Google Gemini (`gemini-1.5-flash`), incoming questions are compared against existing answered questions on the *same auction*.
+- **Instant Answer Reuse**: When a clear, confident semantic match is found ($\ge 80\%$), the seller's original answer is reused immediately with an `"Answered previously by the seller"` badge without alerting the seller.
+- If no reliable match exists, the inquiry is forwarded to the seller's notification feed.
 
-### 7. Watchlists, Saved Searches & Notifications
+### 7. Informative Seller Dashboard & Revenue Analytics
+- Dedicated real-time operational dashboard for student sellers:
+  - **Total Realized Income**: Rupee revenue collected across completed campus handovers.
+  - **Total Items Sold & Sell-Through Rate**: Percentage and count of listings successfully concluded.
+  - **Pending Inflow**: Reserved funds awaiting physical handover confirmation.
+  - **Active Auction Pipeline**: Currently active listings receiving bids.
+  - **Auction Value Surge**: Realized surplus generated above starting reserve prices.
+  - **Category Revenue Breakdown**: Visual progress bars and percentage distribution across item types.
+  - **Tabbed Activity**: Quick filtering across *Overview*, *Action Required*, *Active Auctions*, and *Completed Sales Ledger*.
+
+### 8. Desktop OS Notifications & Web Audio Chimes
+- Never miss an auction win or counter-bid when browsing other tabs or attending classes.
+- **Native OS Alerts**: Uses HTML5 Notifications API to dispatch native operating system desktop alerts. The permission banner automatically disappears once granted, keeping the notification feed clutter-free.
+- **Synthesized Web Audio Chimes**: Generates custom two-tone audio alerts (587.33Hz + 880Hz) directly via the browser's native **Web Audio API** with zero external audio dependencies or network lag.
+- Triggered for critical real-time events: `OUTBID`, `AUCTION_WON`, `NEW_QUESTION`, `QUESTION_ANSWERED`, and `HANDOVER_CONFIRMED`.
+
+### 9. Categorized Notification Centre & In-Line Reply
+- Intelligently categorizes activity feeds into **All Notifications**, **Selling Related**, and **Buying Related** with individual unread count badges.
+- **In-Notification Direct Reply**: Sellers can reply directly to prospective buyers inside question notification cards, instantly publishing the answer to the auction listing and marking the notification as read in a single click.
+
+### 10. Seller Self-Exclusion & Leading Bidder Safeguards
+- **Seller Self-Exclusion**: Authenticated sellers never see their own listings when browsing for items to buy (`GET /listings?excludeOwn=true`), and the Gemini AI assistant automatically excludes a user's own products from search results and bid proposals.
+- **Self-Outbidding Prevention**: The live bidding interface dynamically disables the bid button when the current user is already the leading bidder (*"You are currently the highest bidder"*).
+- **Auto-Bid Active Indicator**: Real-time badge indicates when a private proxy auto-bid ceiling is actively placed on an item.
+
+### 11. Watchlists, Saved Searches & Smart Photo Uploader
 - Add listings to a personal watchlist with one click.
 - Create saved search alerts with maximum price thresholds.
-- Receive instant in-app alerts for outbid events, auction wins, handover updates, and seller responses.
+- **Smart Photos Dropzone**: Direct signed uploads to Cloudinary with contextual inline error validation under the photo uploader for file size (>5MB) and format checks (JPG, PNG, WebP) with one-click dismissal.
 
 ---
 
@@ -156,9 +190,10 @@ flowchart TD
 | **Backend Framework** | [Node.js](https://nodejs.org/) + [Express 4](https://expressjs.com/) | Modular JavaScript (ES Modules) architecture |
 | **Database** | [MongoDB](https://www.mongodb.com/) + [Mongoose 8](https://mongoosejs.com/) | Document store with replica set multi-document ACID transactions |
 | **Real-Time Communication** | [Socket.IO 4](https://socket.io/) | Bi-directional WebSocket channels with room multiplexing |
+| **Audio & Native APIs** | Web Audio API + HTML5 Notifications | Synthesized 2-tone chimes (0 audio assets) and native desktop OS popups |
 | **Authentication** | [Firebase Auth](https://firebase.google.com/) + Admin SDK | Secure Google Sign-In & Email/Password with JWT validation |
 | **Asset Management** | [Cloudinary](https://cloudinary.com/) | Backend-signed client uploads for media assets |
-| **AI Engine** | [Google Gemini](https://ai.google.dev/) / [Groq](https://groq.com/) | Grounded natural language catalog query and bid analysis |
+| **AI Engine** | [Google Gemini](https://ai.google.dev/) / [Groq](https://groq.com/) | Grounded natural language catalog query, bid analysis, and Q&A deduplication |
 | **API Documentation** | [Swagger UI](https://swagger.io/) + OpenAPI 3.0 | Interactive in-browser endpoint testing explorer |
 | **Testing** | [Vitest](https://vitest.dev/) + [Supertest](https://github.com/ladjs/supertest) | Fast test runner with in-memory MongoDB replica set |
 
@@ -201,6 +236,7 @@ The Cloud Company/
 │       │   └── Register.jsx      # New account registration
 │       └── services/
 │           ├── api.js            # Centralized API fetch layer
+│           ├── desktopNotifications.js # Native HTML5 desktop notifications & Web Audio chimes
 │           └── firebase.js       # Client Firebase SDK configuration
 │
 ├── server/                       # Authoritative Backend Service
@@ -226,6 +262,7 @@ The Cloud Company/
 │       │   ├── bidController.js  # Manual bidding & proxy autobid execution
 │       │   ├── communityController.js # Questions, answers & deduplication
 │       │   ├── listingController.js   # Search, create, update, cancel listings
+│       │   ├── notificationController.js # Notification pagination & read markers
 │       │   ├── saleController.js # Post-auction approvals & dual handover
 │       │   ├── uploadController.js    # Cloudinary signed upload generation
 │       │   └── userController.js # Profile sync, preferences & public views
@@ -249,7 +286,9 @@ The Cloud Company/
 │       ├── services/             # Core business logic
 │       │   ├── aiService.js      # Gemini / Groq / Mock integration
 │       │   ├── biddingService.js # ACID-safe bidding & anti-sniping extension
-│       │   └── closureService.js # Deterministic winner resolution
+│       │   ├── closureService.js # Deterministic winner resolution
+│       │   ├── notificationService.js # Notification dispatch & socket emission
+│       │   └── questionMatchingService.js # Gemini duplicate detection & answer reuse
 │       ├── sockets/
 │       │   └── socketManager.js  # Socket.IO connection & room broadcast logic
 │       └── validators/           # Zod schema validation rules
@@ -404,7 +443,7 @@ All REST endpoints are namespaced under `/api/v1`:
 ### 🏷️ Listings
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|:---:|
-| `GET` | `/listings` | Search and filter active auctions (category, query, sort, price) | No |
+| `GET` | `/listings` | Search and filter active auctions (`?category=&search=&sort=&excludeOwn=true`) | No (Optional) |
 | `POST` | `/listings` | Create a new auction listing | Yes |
 | `GET` | `/listings/:id` | Fetch full auction details and public bid history | No |
 | `PATCH` | `/listings/:id` | Update listing details (title, description, condition) | Yes (Seller) |
@@ -435,7 +474,14 @@ All REST endpoints are namespaced under `/api/v1`:
 |---|---|---|:---:|
 | `GET` | `/listings/:id/questions` | Get public questions and answers for a listing | No |
 | `POST` | `/listings/:id/questions` | Ask the seller a question (with auto-deduplication) | Yes |
-| `POST` | `/questions/:id/answer` | Seller answers a question | Yes (Seller) |
+| `POST` | `/questions/:id/answer` | Seller answers a question (in-notification / auction page) | Yes (Seller) |
+
+### 🔔 Notifications
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|:---:|
+| `GET` | `/notifications` | Retrieve user notifications and unread count | Yes |
+| `PATCH` | `/notifications/:id/read` | Mark individual notification as read | Yes |
+| `PATCH` | `/notifications/read-all` | Mark all notifications as read | Yes |
 
 ### 🤖 AI Assistant & Uploads
 | Method | Endpoint | Description | Auth Required |
