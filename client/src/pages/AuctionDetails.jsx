@@ -25,6 +25,7 @@ import { api } from '../services/api.js';
 import { formatPaiseToRupees, rupeesToPaise } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
+import { StudentReputationBadge } from '../components/StudentReputationBadge.jsx';
 
 export function AuctionDetails() {
   const { id } = useParams();
@@ -1104,7 +1105,7 @@ export function AuctionDetails() {
 
           {/* Seller Card */}
           <div className="glass-panel p-6 rounded-3xl border border-slate-200/90 space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Seller Profile</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Seller Trust & Reputation</h3>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center text-lg font-black uppercase shadow-sm">
                 {listing.sellerId?.displayName?.[0] || 'S'}
@@ -1117,10 +1118,18 @@ export function AuctionDetails() {
                     {listing.sellerId?.stats?.averageRating || '5.0'}
                   </span>
                   <span>•</span>
-                  <span>{listing.sellerId?.stats?.completedSales || 0} completed campus sales</span>
+                  <span>Verified Institute Student</span>
                 </div>
               </div>
             </div>
+
+            {/* Comprehensive Student Reputation Badge */}
+            <StudentReputationBadge
+              user={listing.sellerId}
+              showAcademic={true}
+              showHandoverRate={true}
+              showKarma={true}
+            />
           </div>
 
           {/* Real-time Bid History Ledger */}

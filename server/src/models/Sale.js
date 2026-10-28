@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const saleSchema = new mongoose.Schema(
   {
@@ -51,10 +52,34 @@ const saleSchema = new mongoose.Schema(
     reservationExpiresAt: {
       type: Date,
     },
+    // Dynamic In-Person Handover Verification
+    handoverOtp: {
+      type: String,
+      trim: true,
+      maxlength: 6,
+    },
+    handoverOtpCreatedAt: {
+      type: Date,
+    },
+    handoverOtpExpiresAt: {
+      type: Date,
+    },
+    handoverVerifiedVia: {
+      type: String,
+      enum: ['OTP', 'QR', 'MANUAL'],
+      default: 'OTP',
+    },
+    handoverAttempts: {
+      type: Number,
+      default: 0,
+    },
     handoverConfirmedSellerAt: {
       type: Date,
     },
     handoverConfirmedBuyerAt: {
+      type: Date,
+    },
+    handoverCompletedAt: {
       type: Date,
     },
     cancellationReason: {
@@ -76,6 +101,15 @@ const saleSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+saleSchema.methods.generateHandoverOtp = function () {
+  const randomInt = crypto.randomInt(100000, 1000000);
+  this.handoverOtp = randomInt.toString();
+  this.handoverOtpCreatedAt = new Date();
+  this.handoverOtpExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+  this.handoverAttempts = 0;
+  return this.handoverOtp;
+};
 
 saleSchema.index({ sellerId: 1, outcome: 1 });
 saleSchema.index({ winnerId: 1, outcome: 1 });

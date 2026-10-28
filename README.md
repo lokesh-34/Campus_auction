@@ -8,7 +8,7 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose_8-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?logo=socket.io&logoColor=white)](https://socket.io/)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-41_Tests_Passing-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-47_Tests_Passing-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **CampusBid** is an enterprise-grade, real-time second-hand auction marketplace engineered specifically for university campuses. Designed for fairness, consistency, anti-sniping protection, and monetary integrity, it connects student sellers and buyers for transparent, physical on-campus exchanges.
@@ -23,7 +23,7 @@
   - [Live Bidding & Anti-Sniping](#1-real-time-bidding--anti-sniping-soft-close)
   - [Proxy AutoBidding](#2-proxy-autobidding-engine)
   - [Monetary Precision](#3-zero-floating-point-monetary-precision)
-  - [Dual-Confirmation Handover](#4-dual-confirmation-post-auction-handover)
+  - [Trust, Safety & Dynamic Handover Verification](#4-trust-safety--dynamic-handover-verification)
   - [AI Campus Assistant](#5-ai-campus-shopping-assistant)
   - [Community Q&A with Smart Deduplication](#6-community-qa-with-gemini-duplicate-detection)
   - [Seller Dashboard & Revenue Analytics](#7-informative-seller-dashboard--revenue-analytics)
@@ -53,7 +53,7 @@
 - 🤖 **Private Proxy AutoBidding**: Set a secret maximum ceiling; the authoritative backend incrementally outbids competitors on your behalf while strictly guarding your ceiling from public APIs and sockets.
 - 💰 **Paise Monetary Precision**: Eliminates JavaScript IEEE 754 floating-point rounding errors by calculating and storing all currency values as integer **paise** ($1\text{ INR} = 100\text{ paise}$).
 - 🔒 **ACID Transaction Safety**: All bidding sequences, price updates, and auction extensions execute inside MongoDB multi-document transactions with atomic rollback on contention.
-- 🤝 **Dual-Confirmation Physical Handover**: Protects student buyers and sellers with a multi-step post-auction resolution lifecycle (Approved $\rightarrow$ Reserved $\rightarrow$ Dual In-Person Confirmation $\rightarrow$ Completed).
+- 🤝 **Trust, Safety & Dynamic Handover Verification**: Eliminates disputes and accidental clicks via buyer dynamic QR code / 6-digit OTP in-person atomic validation, paired with student reputation badges and dynamic Karma scoring (+10 reward on completion, -25 penalty on ghosting).
 - 🧠 **Grounded Gemini AI Assistant**: Natural language search and bid advisory integrated with Google Gemini (`gemini-1.5-flash`), answering student queries based strictly on active campus listings.
 - 💬 **Intelligent Community Q&A**: Listing-level public inquiries featuring automated question deduplication powered by Gemini 1.5 Flash that reuses existing seller answers instantly.
 - 📊 **Informative Seller Dashboard**: Real-time revenue analytics tracking realized income, pending inflow, sell-through rate, auction value surge, and category revenue distribution.
@@ -130,11 +130,22 @@ flowchart TD
   $$\text{Amount (Paise)} = \text{Amount (Rupees)} \times 100$$
 - Example: A starting price of ₹250.00 is strictly tracked as `25000` paise.
 
-### 4. Dual-Confirmation Post-Auction Handover
-- Once an auction closes, a structured `Sale` record is created.
-- The seller reviews and approves or rejects the final winning bid.
-- Upon approval, the item transitions to `RESERVED`.
-- Both buyer and seller meet on campus and independently submit their handover confirmation, moving the status to `COMPLETED`.
+### 4. Trust, Safety & Dynamic Handover Verification
+- **Dynamic 6-Digit OTP & QR In-Person Handover**:
+  - When an auction closes and the seller approves the winning price, the item enters `RESERVED` status and the authoritative engine generates an encrypted 6-digit OTP and dynamic QR code on the **buyer's screen**.
+  - Both parties meet on campus at an agreed public location (Central Library, Hostel Common Room, Student Activity Center).
+  - The seller inspects the item with the buyer and either scans the dynamic QR code with their phone camera or enters the 6-digit OTP into their `SellerDashboard`.
+  - The backend atomically confirms physical possession transfer, sets the status to `SOLD`, and prevents disputes, accidental clicks, or false claims.
+  - **Rate Limiting & Credential Isolation**: Maximum 5 attempts per reserved handover prevents brute-forcing, while strict server-side redaction ensures the seller cannot inspect the code until the buyer reveals it in person.
+- **Student Reputation & Karma Scoring**:
+  - **Verified Institute Badges**: Displays verified student status, campus email domain, academic department (e.g. *Computer Science & Engineering*), and current year (e.g. *3rd Year*).
+  - **Completion Handover Rate & Karma Score**: Users start with 100 base Karma. Successful campus handovers award **+10 Karma**, while ghosting or post-auction cancellation penalizes the non-compliant user **-25 Karma**. Handover rates are tracked transparently (e.g. `100% Handover Rate (12 items sold)`).
+  - **Dynamic Trust Tiers**: Automatically graduates student accounts across four progressive tiers:
+    - 🔰 **New Student Trader**: New campus member setting up their profile.
+    - 🎓 **Verified Student**: Verified campus email with active standing.
+    - 🛡️ **Trusted Campus Seller**: 3+ successful handovers with $\ge 80\%$ completion rate and zero unresolved disputes.
+    - 🏆 **Elite Campus Trader**: 10+ successful handovers with $\ge 95\%$ completion rate.
+  - Displayed across auction item pages, seller telemetry dashboards, and buyer handover inspection panels.
 
 ### 5. AI Campus Shopping Assistant
 - Powered by Google Gemini (`gemini-1.5-flash`), with automated fallback to Groq and Mock providers.

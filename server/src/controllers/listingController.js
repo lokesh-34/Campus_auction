@@ -142,7 +142,7 @@ export async function getListings(req, res, next) {
 
     const [listings, totalCount] = await Promise.all([
       Listing.find(filter)
-        .populate('sellerId', 'displayName stats profileImage')
+        .populate('sellerId', 'displayName stats profileImage department year isVerifiedStudent verifiedEmailDomain')
         .sort(sort)
         .skip(skip)
         .limit(limit),
@@ -169,7 +169,10 @@ export async function getListings(req, res, next) {
 export async function getListingById(req, res, next) {
   try {
     const { id } = req.params;
-    const listing = await Listing.findById(id).populate('sellerId', 'displayName stats profileImage');
+    const listing = await Listing.findById(id).populate(
+      'sellerId',
+      'displayName stats profileImage department year isVerifiedStudent verifiedEmailDomain'
+    );
 
     if (!listing) {
       return res.status(404).json({

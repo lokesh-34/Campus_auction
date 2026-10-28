@@ -9,6 +9,18 @@ export async function syncUser(req, res, next) {
     if (req.body.profileImage) {
       user.profileImage = req.body.profileImage;
     }
+    if (!user.stats || user.stats.karmaScore === undefined) {
+      user.stats = {
+        completedSales: user.stats?.completedSales || 0,
+        cancelledSales: user.stats?.cancelledSales || 0,
+        karmaScore: 100,
+        handoverRate: 100,
+        ghostingPenalties: 0,
+        trustTier: 'VERIFIED_STUDENT',
+        ratingCount: 0,
+        averageRating: 5.0,
+      };
+    }
     await user.save();
 
     res.json({
@@ -19,6 +31,13 @@ export async function syncUser(req, res, next) {
         email: user.email,
         displayName: user.displayName,
         profileImage: user.profileImage,
+        department: user.department || 'Computer Science & Engineering',
+        year: user.year || '3rd Year',
+        studentId: user.studentId || '',
+        isVerifiedStudent: Boolean(user.isVerifiedStudent ?? true),
+        verifiedEmailDomain: user.verifiedEmailDomain || 'campus.edu',
+        phoneNumber: user.phoneNumber || '',
+        pickupPoint: user.pickupPoint || '',
         notificationPreferences: user.notificationPreferences,
         stats: user.stats,
       },
@@ -40,6 +59,13 @@ export async function getCurrentUser(req, res, next) {
         displayName: user.displayName,
         profileImage: user.profileImage,
         role: user.role,
+        department: user.department || 'Computer Science & Engineering',
+        year: user.year || '3rd Year',
+        studentId: user.studentId || '',
+        isVerifiedStudent: Boolean(user.isVerifiedStudent ?? true),
+        verifiedEmailDomain: user.verifiedEmailDomain || 'campus.edu',
+        phoneNumber: user.phoneNumber || '',
+        pickupPoint: user.pickupPoint || '',
         notificationPreferences: user.notificationPreferences,
         stats: user.stats,
         createdAt: user.createdAt,
@@ -53,10 +79,25 @@ export async function getCurrentUser(req, res, next) {
 export async function updateProfile(req, res, next) {
   try {
     const user = req.user;
-    const { displayName, profileImage, notificationPreferences } = req.body;
+    const {
+      displayName,
+      profileImage,
+      department,
+      year,
+      studentId,
+      phoneNumber,
+      pickupPoint,
+      notificationPreferences,
+    } = req.body;
 
     if (displayName) user.displayName = displayName;
     if (profileImage) user.profileImage = profileImage;
+    if (department) user.department = department;
+    if (year) user.year = year;
+    if (studentId !== undefined) user.studentId = studentId;
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+    if (pickupPoint !== undefined) user.pickupPoint = pickupPoint;
+
     if (notificationPreferences) {
       user.notificationPreferences = {
         ...user.notificationPreferences,
@@ -72,6 +113,12 @@ export async function updateProfile(req, res, next) {
         id: user._id,
         displayName: user.displayName,
         profileImage: user.profileImage,
+        department: user.department,
+        year: user.year,
+        studentId: user.studentId,
+        phoneNumber: user.phoneNumber,
+        pickupPoint: user.pickupPoint,
+        isVerifiedStudent: user.isVerifiedStudent,
         notificationPreferences: user.notificationPreferences,
         stats: user.stats,
       },

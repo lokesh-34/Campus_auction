@@ -18,11 +18,19 @@ import {
   Timer,
   RefreshCw,
   ShoppingBag,
+  QrCode,
+  KeyRound,
+  Copy,
+  Check,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useSocket } from '../contexts/SocketContext.jsx';
+import { QRCodeView } from '../components/QRCodeView.jsx';
+import { StudentReputationBadge } from '../components/StudentReputationBadge.jsx';
 
 function ActiveBidCountdown({ closingAt, status }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -95,6 +103,8 @@ export function BuyerDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState('');
+  const [copiedOtp, setCopiedOtp] = useState({});
+  const [refreshingOtp, setRefreshingOtp] = useState({});
 
   useEffect(() => {
     loadBuyerData();
@@ -185,6 +195,28 @@ export function BuyerDashboard() {
       setRefreshing(false);
     }
   }
+
+  const handleCopyOtp = (saleId, otp) => {
+    if (!otp) return;
+    navigator.clipboard?.writeText(otp);
+    setCopiedOtp((prev) => ({ ...prev, [saleId]: true }));
+    setTimeout(() => {
+      setCopiedOtp((prev) => ({ ...prev, [saleId]: false }));
+    }, 2000);
+  };
+
+  const handleRefreshOtp = async (saleId) => {
+    setRefreshingOtp((prev) => ({ ...prev, [saleId]: true }));
+    try {
+      await api.refreshHandoverOtp(saleId);
+      await loadBuyerData(false);
+      setMsg('New 6-digit handover OTP generated successfully.');
+    } catch (err) {
+      alert(err.message || 'Failed to refresh OTP');
+    } finally {
+      setRefreshingOtp((prev) => ({ ...prev, [saleId]: false }));
+    }
+  };
 
   const handleConfirmHandover = async (saleId) => {
     setActionLoading(true);
@@ -291,33 +323,63 @@ export function BuyerDashboard() {
         </div>
       </div>
 
-      {/* Campus Handover Section (Action Required) */}
+      {/* Campus Handover Section (Action Required: In-Person OTP & QR Handover) */}
       {wonReserved.length > 0 && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border-2 border-emerald-400 dark:border-emerald-600 shadow-xl space-y-4 bg-emerald-50/20">
-          <div className="flex items-center gap-2">
-            <Handshake className="w-6 h-6 text-emerald-600" />
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              Items Ready for Campus Handover ({wonReserved.length})
-            </h2>
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border-2 border-emerald-400 dark:border-emerald-600 shadow-xl space-y-5 bg-gradient-to-br from-emerald-50/40 via-white to-white dark:from-emerald-950/20 dark:via-slate-900 dark:to-slate-900">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
+                <Handshake className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                  In-Person Campus Handover ({wonReserved.length})
+                </h2>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Seller approved your winning bid! Meet in person to inspect the item, then show this dynamic QR code or OTP to confirm possession.
+                </p>
+              </div>
+            </div>
+            <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+              OTP Secured
+            </span>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            The seller has approved your winning bid! Meet the seller on campus to inspect the item, then click confirm below to finalize.
-          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             {wonReserved.map((sale) => {
-              const buyerConfirmed = Boolean(sale.handoverConfirmedBuyerAt);
+              const otpString = sale.handoverOtp || '······';
+              const verifyUrl = `${window.location.origin}/seller/dashboard?verifySale=${sale._id}&otp=${sale.handoverOtp || ''}`;
+
               return (
-                <div key={sale._id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">{sale.listingId?.title}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Sold by: {sale.sellerId?.displayName}</p>
+                <div
+                  key={sale._id}
+                  className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-md space-y-4 relative overflow-hidden"
+                >
+                  {/* Top Item Strip */}
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                        Winning Item
+                      </span>
+                      <h3 className="font-extrabold text-slate-900 dark:text-white text-base leading-snug">
+                        {sale.listingId?.title}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Seller: <strong className="text-slate-800 dark:text-slate-200">{sale.sellerId?.displayName}</strong>
+                      </p>
                     </div>
-                    <span className="text-lg font-black text-slate-900 dark:text-white">
-                      {formatPaiseToRupees(sale.finalPricePaise)}
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase">Final Price</span>
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                        {formatPaiseToRupees(sale.finalPricePaise)}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Seller Trust & Student Reputation */}
+                  {sale.sellerId && (
+                    <StudentReputationBadge user={sale.sellerId} compact />
+                  )}
 
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
                     <p>
@@ -351,19 +413,80 @@ export function BuyerDashboard() {
                     )}
                   </div>
 
-                  {!buyerConfirmed ? (
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleConfirmHandover(sale._id)}
-                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition"
-                    >
-                      Confirm In-Person Handover
-                    </button>
-                  ) : (
-                    <p className="text-center text-xs text-emerald-600 font-bold py-1">
-                      Confirmed! Awaiting seller confirmation...
-                    </p>
-                  )}
+                  {/* Dynamic QR & OTP Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/40 dark:from-slate-850 dark:via-slate-800 dark:to-slate-850 border border-indigo-100 dark:border-indigo-950 flex flex-col sm:flex-row items-center gap-5">
+                    {/* QR Code */}
+                    <div className="shrink-0 flex flex-col items-center">
+                      <QRCodeView value={verifyUrl} size={130} />
+                      <span className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1">
+                        <QrCode className="w-3 h-3 text-indigo-500" />
+                        <span>Scan to Confirm</span>
+                      </span>
+                    </div>
+
+                    {/* 6-Digit OTP */}
+                    <div className="flex-1 space-y-2.5 w-full text-center sm:text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300 flex items-center gap-1">
+                          <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>6-Digit Handover OTP</span>
+                        </span>
+
+                        <button
+                          onClick={() => handleRefreshOtp(sale._id)}
+                          disabled={refreshingOtp[sale._id]}
+                          className="text-[11px] font-bold text-brand-600 hover:underline flex items-center gap-1"
+                          title="Generate a new 6-digit code"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${refreshingOtp[sale._id] ? 'animate-spin' : ''}`} />
+                          <span>Regenerate</span>
+                        </button>
+                      </div>
+
+                      {/* Large segmented numbers */}
+                      <div className="flex items-center justify-center sm:justify-start gap-1.5">
+                        {otpString.split('').map((digit, i) => (
+                          <span
+                            key={i}
+                            className="w-8 h-11 sm:w-9 sm:h-12 flex items-center justify-center text-lg sm:text-xl font-black font-mono rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-2 border-indigo-200 dark:border-indigo-800 shadow-xs"
+                          >
+                            {digit}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Copy and Status */}
+                      <div className="flex items-center gap-2 pt-1 justify-center sm:justify-start">
+                        <button
+                          onClick={() => handleCopyOtp(sale._id, sale.handoverOtp)}
+                          className="px-3.5 py-1.5 rounded-xl border border-slate-300 hover:bg-white text-slate-700 text-xs font-bold transition shadow-xs flex items-center gap-1.5"
+                        >
+                          {copiedOtp[sale._id] ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy OTP</span>
+                            </>
+                          )}
+                        </button>
+                        <span className="text-[10px] text-slate-400">
+                          Expires in 72h
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Safety Notice */}
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Handover Safety:</strong> Inspect the physical item in-person first. Only show or share this OTP after receiving the item. The seller enters it to complete the transaction.
+                    </span>
+                  </div>
                 </div>
               );
             })}

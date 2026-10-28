@@ -27,19 +27,39 @@ import {
   MapPin,
   Phone,
   Trash2,
+  KeyRound,
+  GraduationCap,
+  QrCode,
+  ShieldAlert,
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { formatPaiseToRupees } from '../utils/formatCurrency.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { StudentReputationBadge } from '../components/StudentReputationBadge.jsx';
+import { HandoverVerificationModal } from '../components/HandoverVerificationModal.jsx';
 
 export function SellerDashboard() {
-  const { mongoUser } = useAuth();
+  const { mongoUser, refreshUser } = useAuth();
   const [allListings, setAllListings] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'active' | 'handovers' | 'completed'
+
+  // Handover OTP / QR Verification Modal State
+  const [verifyingSale, setVerifyingSale] = useState(null);
+  const [initialOtp, setInitialOtp] = useState('');
+
+  // Academic Profile Edit Modal State
+  const [academicModalOpen, setAcademicModalOpen] = useState(false);
+  const [academicForm, setAcademicForm] = useState({
+    department: '',
+    year: '',
+    pickupPoint: '',
+    phoneNumber: '',
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Edit Starting Price Modal State
   const [editingListing, setEditingListing] = useState(null);
@@ -67,6 +87,21 @@ export function SellerDashboard() {
       ]);
       setAllListings(listingsData || []);
       setSales(salesData || []);
+
+      // Check if arriving from buyer's dynamic QR code scan
+      const searchParams = new URLSearchParams(window.location.search);
+      const verifySaleId = searchParams.get('verifySale');
+      const otpCode = searchParams.get('otp');
+      if (verifySaleId && salesData) {
+        const targetSale = salesData.find(
+          (s) => s._id === verifySaleId && s.outcome === 'RESERVED'
+        );
+        if (targetSale) {
+          setVerifyingSale(targetSale);
+          if (otpCode) setInitialOtp(otpCode);
+          setMsg('📲 Scanned Buyer QR Code! Review the details below and enter/confirm the handover code.');
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -101,16 +136,28 @@ export function SellerDashboard() {
     }
   };
 
-  const handleConfirmHandover = async (saleId) => {
-    setActionLoading(true);
+  const handleOpenAcademicModal = () => {
+    setAcademicForm({
+      department: mongoUser?.department || 'Computer Science & Engineering',
+      year: mongoUser?.year || '3rd Year',
+      pickupPoint: mongoUser?.pickupPoint || 'Central Library Ground Floor',
+      phoneNumber: mongoUser?.phoneNumber || '',
+    });
+    setAcademicModalOpen(true);
+  };
+
+  const handleSaveAcademicProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
     try {
-      await api.confirmHandover(saleId);
-      setMsg('You confirmed the handover! Once the buyer confirms, the transaction is complete.');
-      await loadData();
+      await api.updateProfile(academicForm);
+      if (refreshUser) await refreshUser();
+      setMsg('Student verification details updated successfully!');
+      setAcademicModalOpen(false);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Failed to update student profile');
     } finally {
-      setActionLoading(false);
+      setSavingProfile(false);
     }
   };
 
@@ -303,19 +350,30 @@ export function SellerDashboard() {
             <span>Post New Item</span>
           </Link>
 
-          {/* Seller Reputation Pill */}
-          <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-100/80 border border-slate-200 text-xs">
-            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-xs">
-              {mongoUser?.displayName?.[0] || 'S'}
+          {/* Seller Reputation Pill & Academic Profile */}
+          <div className="flex items-center gap-3 p-2 pr-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-indigo-600 text-white font-black flex items-center justify-center text-sm shadow">
+              {mongoUser?.displayName?.[0]?.toUpperCase() || 'S'}
             </div>
-            <div>
-              <span className="block font-bold text-slate-800 leading-tight">
-                {mongoUser?.displayName || 'Campus Seller'}
-              </span>
-              <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-600 inline" />
-                Verified Student
-              </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 leading-none">
+                  {mongoUser?.displayName || 'Campus Student'}
+                </span>
+                <StudentReputationBadge user={mongoUser} compact />
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                <span>{mongoUser?.department || 'Engineering'} • {mongoUser?.year || '3rd Year'}</span>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={handleOpenAcademicModal}
+                  className="font-bold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-0.5"
+                >
+                  <Edit3 className="w-2.5 h-2.5" />
+                  <span>Edit Profile</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -614,65 +672,104 @@ export function SellerDashboard() {
         </div>
       )}
 
-      {/* SECTION 2: Reserved Handovers (Active Pickup Coordination) */}
+      {/* SECTION 2: Reserved Handovers (Active Pickup Coordination & Dynamic OTP Verification) */}
       {(activeTab === 'overview' || activeTab === 'action') && stats.reservedSales.length > 0 && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-md space-y-4">
-          <div className="flex items-center gap-2">
-            <Handshake className="w-5 h-5 text-brand-600" />
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              Active Campus Handovers ({stats.reservedSales.length} Reserved)
-            </h2>
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-md space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Handshake className="w-5 h-5 text-brand-600" />
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                Active Campus Handovers ({stats.reservedSales.length} Reserved)
+              </h2>
+            </div>
+            <span className="text-[11px] font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/60 px-3 py-1 rounded-full border border-brand-200 dark:border-brand-800 self-start sm:self-auto flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Protected by Dynamic OTP & Karma Scoring</span>
+            </span>
           </div>
+
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            Meet the buyer at a public campus location (Hostel common room, central library, or cafeteria). Inspect the item together, exchange payment, and confirm below.
+            Meet the winning student at the agreed public campus spot. Inspect the item together, collect payment, then enter the 6-digit handover code shown on their phone screen (or scan their dynamic QR code) to atomically complete the transaction.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            {stats.reservedSales.map((sale) => {
-              const sellerConfirmed = Boolean(sale.handoverConfirmedSellerAt);
-              return (
-                <div key={sale._id} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{sale.listingId?.title}</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Buyer: <strong className="text-slate-800 dark:text-slate-200">{sale.winnerId?.displayName}</strong>
-                      </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {stats.reservedSales.map((sale) => (
+              <div
+                key={sale._id}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 hover:border-brand-300 transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      {sale.listingId?.title}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">Buyer:</span>
+                      <strong className="text-xs text-slate-800 dark:text-slate-200">
+                        {sale.winnerId?.displayName || 'Campus Student'}
+                      </strong>
+                      <StudentReputationBadge user={sale.winnerId} compact />
                     </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Agreed Price</span>
                     <span className="text-xl font-black text-slate-900 dark:text-slate-100">
                       {formatPaiseToRupees(sale.finalPricePaise)}
                     </span>
                   </div>
+                </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5 border border-slate-100 dark:border-slate-700">
-                    <div className="flex justify-between items-center">
-                      <span>Status:</span>
-                      <span className="font-bold text-brand-700 dark:text-brand-400">Reserved for Handover</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Seller Handover:</span>
-                      <span className={sellerConfirmed ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
-                        {sellerConfirmed ? 'Confirmed ✓' : 'Pending Confirmation'}
-                      </span>
-                    </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 text-[11px] text-slate-600 dark:text-slate-300 space-y-2 border border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-500">Campus Pickup Spot:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                      <span>{sale.listingId?.pickupPoint || 'Central Campus Library / Common Room'}</span>
+                    </span>
                   </div>
-
-                  {!sellerConfirmed ? (
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleConfirmHandover(sale._id)}
-                      className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
-                    >
-                      {actionLoading ? 'Updating...' : 'Confirm In-Person Handover'}
-                    </button>
-                  ) : (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-center text-xs text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-100 dark:border-emerald-800">
-                      Handover confirmed! Waiting for buyer verification to complete.
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-500">Security Protocol:</span>
+                    <span className="font-bold text-brand-700 dark:text-brand-300 flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>Dynamic 6-Digit Buyer OTP</span>
+                    </span>
+                  </div>
+                  {sale.winnerId?.phoneNumber && (
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-500">Buyer Phone:</span>
+                      <a
+                        href={`tel:${sale.winnerId.phoneNumber}`}
+                        className="font-bold text-brand-600 hover:underline flex items-center gap-1"
+                      >
+                        <Phone className="w-3 h-3" />
+                        <span>{sale.winnerId.phoneNumber}</span>
+                      </a>
                     </div>
                   )}
                 </div>
-              );
-            })}
+
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setVerifyingSale(sale);
+                      setInitialOtp('');
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span>Verify In-Person Handover (Enter OTP / Scan)</span>
+                  </button>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1">
+                    <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <Sparkles className="w-3 h-3" />
+                      <span>+10 Karma upon verification</span>
+                    </span>
+                    <span>Zero accidental clicks</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -997,6 +1094,128 @@ export function SellerDashboard() {
                   className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
                 >
                   {cancelLoading ? 'Cancelling...' : 'Confirm Cancellation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Handover Dynamic OTP / QR Verification Modal */}
+      {verifyingSale && (
+        <HandoverVerificationModal
+          sale={verifyingSale}
+          initialOtp={initialOtp}
+          onClose={() => {
+            setVerifyingSale(null);
+            setInitialOtp('');
+          }}
+          onSuccess={() => {
+            setVerifyingSale(null);
+            setInitialOtp('');
+            setMsg('🎉 Handover confirmed! Item marked as SOLD and +10 Karma points added to your student profile.');
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Campus Academic Profile & Verification Modal */}
+      {academicModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="glass-panel w-full max-w-md p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 bg-white dark:bg-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-brand-600">
+                <GraduationCap className="w-5 h-5" />
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  Campus Student Profile
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAcademicModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Your academic department, year, and pickup location build trust with peer buyers and sellers on campus.
+            </p>
+
+            <form onSubmit={handleSaveAcademicProfile} className="space-y-3.5 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Department / Academic Branch
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Computer Science & Engineering"
+                  value={academicForm.department}
+                  onChange={(e) => setAcademicForm({ ...academicForm, department: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Academic Year
+                </label>
+                <select
+                  value={academicForm.year}
+                  onChange={(e) => setAcademicForm({ ...academicForm, year: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="1st Year">1st Year (Freshman)</option>
+                  <option value="2nd Year">2nd Year (Sophomore)</option>
+                  <option value="3rd Year">3rd Year (Junior)</option>
+                  <option value="4th Year">4th Year (Senior / Final Year)</option>
+                  <option value="Postgraduate / PhD">Postgraduate / PhD / Researcher</option>
+                  <option value="Faculty / Staff">Faculty / Campus Staff</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Default Campus Handover Spot
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Central Library Ground Floor, Hostel 4 Lobby"
+                  value={academicForm.pickupPoint}
+                  onChange={(e) => setAcademicForm({ ...academicForm, pickupPoint: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Phone Number (Visible only to confirmed buyer/seller)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={academicForm.phoneNumber}
+                  onChange={(e) => setAcademicForm({ ...academicForm, phoneNumber: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setAcademicModalOpen(false)}
+                  className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
                 </button>
               </div>
             </form>

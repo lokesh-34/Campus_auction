@@ -70,9 +70,13 @@ export const api = {
   getSale: (id) => request(`/sales/${id}`),
   approveSale: (id) => request(`/sales/${id}/approve`, { method: 'POST' }),
   rejectSale: (id) => request(`/sales/${id}/reject`, { method: 'POST' }),
+  verifyHandoverOtp: (id, otp) =>
+    request(`/sales/${id}/verify-otp`, { method: 'POST', body: JSON.stringify({ otp }) }),
+  refreshHandoverOtp: (id) => request(`/sales/${id}/refresh-otp`, { method: 'POST' }),
   confirmHandover: (id) => request(`/sales/${id}/confirm-handover`, { method: 'POST' }),
   cancelSale: (id, reason) => request(`/sales/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getMySales: (role = 'all') => request(`/sales/my?role=${role}`),
+  updateProfile: (data) => request('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Questions
   getQuestions: (listingId) => request(`/listings/${listingId}/questions`),
