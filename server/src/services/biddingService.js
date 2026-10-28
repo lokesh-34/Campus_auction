@@ -74,6 +74,13 @@ export async function placeManualBid({ listingId, bidderId, amountPaise }) {
       throw err;
     }
 
+    // Prohibit outbidding oneself if already highest bidder
+    if (listing.leadingBidderId && listing.leadingBidderId.toString() === bidderId.toString()) {
+      const err = new Error('You are already the highest bidder for this auction.');
+      err.statusCode = 400;
+      throw err;
+    }
+
     // Eligibility check
     assertAuctionEligible(listing, now);
 

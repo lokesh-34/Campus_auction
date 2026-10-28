@@ -76,6 +76,17 @@ describe('Authoritative Bidding & Proxy Bidding Engine', () => {
     expect(res.body.data.listing.bidCount).toBe(1);
   });
 
+  it('rejects subsequent bid from the same buyer when they are already the highest bidder', async () => {
+    // Buyer 1 is currently the highest bidder at 100000 paise
+    const res = await request(app)
+      .post(`/api/v1/listings/${listingId}/bids`)
+      .set('Authorization', `Bearer ${buyer1Token}`)
+      .send({ amountPaise: 110000 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('already the highest bidder');
+  });
+
   it('enforces minimum increment for subsequent manual bid', async () => {
     // Current price is ₹1,000 (100000 paise). Min increment is ₹50 (5000 paise).
     // Bid of 102000 paise (₹1,020) should be rejected
